@@ -74,7 +74,7 @@
   <section class="page" id="page-route">
     <header class="page-header">ROUTE</header>
 
-    <div id="map"></div>
+    <div id="map-viewport"><div id="map"></div></div>
 
     <div class="panel">
       <div class="row">
@@ -171,6 +171,27 @@
         <option value="750">0.75s</option>
         <option value="1000">1s</option>
       </select>
+    </div>
+
+    <div class="panel">
+      <label>Compass-assisted COG (experimental)</label>
+      <div class="tile-sub">Fuses the phone's compass into the COG display at low speed (e.g. pre-start maneuvering), where GPS heading gets noisy. GPS course-over-ground stays the source of truth for tacking/wind detection and GPX export at real sailing speed - this only touches the COG readout and map rotation.</div>
+      <div class="row">
+        <label style="flex:1; margin:0; display:flex; align-items:center;">
+          <input type="checkbox" id="compass-fusion-enabled" style="width:auto; margin-right:8px;"> Enabled
+        </label>
+      </div>
+      <div class="sub-readout" id="compass-fusion-status">Compass fusion: waiting for absolute orientation data...</div>
+    </div>
+
+    <div class="panel">
+      <label>Map orientation</label>
+      <div class="tile-sub">By default the Route map rotates to heading-up, like a chartplotter. Lock it to north-up instead if you'd rather the map never rotates.</div>
+      <div class="row">
+        <label style="flex:1; margin:0; display:flex; align-items:center;">
+          <input type="checkbox" id="map-north-lock" style="width:auto; margin-right:8px;"> Lock map to North
+        </label>
+      </div>
     </div>
 
     <div class="panel">

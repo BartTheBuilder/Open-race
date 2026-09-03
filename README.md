@@ -21,7 +21,10 @@ Three pages, like a real chartplotter/MFD, switched with the bottom tab bar:
   saved and restored automatically, with a reset to the default arrangement
   if nothing's been customized yet.
 - **Route** — the chart/map, pin-end and boat-end line pings, and session
-  recording (start/stop).
+  recording (start/stop). The map rotates heading-up by default, like a
+  chartplotter (a "Lock map to North" setting turns this off), rotating off a
+  smoothed heading rather than raw GPS course so it doesn't swing with normal
+  low-speed COG jitter.
 - **Settings** — wind direction, either typed in manually, fetched as a
   regional forecast estimate (Open-Meteo, free, no key), or measured directly
   by **sailing both tacks**: hold steady close-hauled on starboard, tack, hold
@@ -30,10 +33,14 @@ Three pages, like a real chartplotter/MFD, switched with the bottom tab bar:
   compass needed. Below that, **auto wind from tacking** keeps redoing this
   continuously from a rolling window of your recent heading history (default
   4 min, adjustable) so wind keeps correcting itself as conditions change,
-  without needing to stop and recalibrate. Also a **color theme** picker
-  (Default, Monochrome, Vintage Amber - the map track/line colors switch with
-  it too) and the list of recorded sessions with per-session **GPX export**
-  and delete.
+  without needing to stop and recalibrate. Also an experimental **compass-
+  assisted COG** toggle (default off) that fuses the phone's compass into the
+  COG display at low speed, where GPS heading is noisiest and a good heading
+  matters most (e.g. pre-start maneuvering) - GPS stays the sole source for
+  tack/wind detection and GPX export regardless. Also a **color theme**
+  picker (Default, Monochrome, Vintage Amber - the map track/line colors
+  switch with it too) and the list of recorded sessions with per-session
+  **GPX export** and delete.
 
 Other notes:
 - **Header/lifter alerts**: when auto-wind detects the true wind has moved,
@@ -82,8 +89,12 @@ browser menu → **"Add to Home Screen"** — it'll behave like an installed app
 
 ## Notes on the sailing math
 
-- Speed/heading come from GPS course-over-ground, not the phone's compass —
-  compass headings near metal/rigging are unreliable and need calibration.
+- Navigation math (tack detection, auto wind, GPX export) always uses GPS
+  course-over-ground, never the compass — compass headings near metal/rigging
+  are unreliable and drift from actual course due to leeway/current. The
+  optional compass fusion (Settings) only ever touches the COG *display* and
+  map rotation, and only kicks in below the boat-speed threshold where GPS
+  heading itself is the less trustworthy of the two.
 - Wind direction is always manual entry; everything else (bias, burn time,
   tack side) is derived from it, so keep it updated as the wind shifts.
 - Line-bias and distance-to-line use a flat-earth (equirectangular) projection
