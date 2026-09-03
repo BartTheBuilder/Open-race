@@ -9,12 +9,16 @@ const MOVING_MIN_SPEED_KN = 1.5;  // below this, heading is noise (drifting/stop
 const SHIFT_NOTICE_MIN_DEG = 4;   // ignore wind-shift jitter smaller than this
 const AUTO_WIND_MIN_SAMPLES = 8;  // per tack, within the rolling window, before trusting the average heading
 const HEADING_LOG_MAX_AGE_MS = 10 * 60 * 1000; // prune anything older than the largest allowed window
+const COMPASS_OFFSET_ALPHA = 0.03; // slow low-pass on (GPS cog - compass heading), only learned while moving fast
+const HEADING_EMA_ALPHA = 0.15;    // smooths raw GPS COG for display/map-rotation use only - never for state.cog
+const COMPASS_TIMEOUT_MS = 8000;   // how long to wait for an absolute orientation sample before giving up
 
 /* ---------- state ---------- */
 const state = {
   lastFix: null,        // {lat, lon, t}
   speedKn: null,
-  cog: null,             // course over ground, degrees true
+  cog: null,             // course over ground, degrees true - GPS ONLY, feeds tack/wind detection + GPX export
+  heading: null,         // smoothed display/rotation heading - compass-fused at low speed when enabled, else smoothed GPS COG
   windDir: 0,
   windSource: 'auto',       // 'manual' locks windDir - auto-wind won't overwrite it
   tackAngleDeg: null,
@@ -45,7 +49,9 @@ function switchPage(name) {
   if (name === 'route') {
     // Leaflet mis-sizes a map that was initialized while its container was
     // display:none - fix it up whenever the Route page becomes visible.
-    setTimeout(() => map.invalidateSize(), 50);
+    // sizeRotatedMap() must run first: it sets #map's oversized pixel
+    // dimensions that invalidateSize() then reads.
+    setTimeout(() => { sizeRotatedMap(); map.invalidateSize(); applyMapRotation(); }, 50);
   }
 }
 
@@ -84,6 +90,57 @@ function angleDiff(a, b) {
 /* ---------- map ---------- */
 const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([52.0, 5.0], 14);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+// Heading-up rotation, done cheaply without the leaflet-rotate plugin (which
+// would need a CDN this app's offline service worker doesn't cache). We
+// oversize #map so rotating it never reveals empty corners.
+//
+// We do NOT rotate Leaflet's own map pane (.leaflet-map-pane) directly, nor
+// set a `rotate` alongside Leaflet's `transform` on that same element: per
+// the CSS individual-transform-properties spec, `rotate` composes *inside*
+// `transform` (translate applied first, then rotate, then the `transform`
+// property last) - the opposite of what we need. Leaflet's pan offset is
+// computed assuming the container's own center pixel always shows
+// map.getCenter(); rotating the whole thing correctly around that fixed
+// screen point requires the rotation to be the OUTER transform, applied
+// after Leaflet's pan. So instead we insert a plain wrapper div as the new
+// parent of the map pane and rotate the wrapper - DOM nesting always applies
+// a child's transform before its parent's, which gives exactly the order we
+// need, and Leaflet reaches its panes through stored references (not DOM
+// traversal), so reparenting the pane element is safe.
+const mapViewportEl = document.getElementById('map-viewport');
+const mapEl = document.getElementById('map');
+const mapPaneEl = map.getPane('mapPane');
+const mapRotateWrapperEl = document.createElement('div');
+mapRotateWrapperEl.id = 'map-rotate-wrapper';
+mapPaneEl.parentNode.insertBefore(mapRotateWrapperEl, mapPaneEl);
+mapRotateWrapperEl.appendChild(mapPaneEl);
+let mapNorthLock = false; // persisted setting - true forces north-up
+
+function sizeRotatedMap() {
+  const w = mapViewportEl.clientWidth, h = mapViewportEl.clientHeight;
+  if (w === 0 || h === 0) return; // page hidden (display:none) - nothing to size yet
+  const size = Math.ceil(Math.hypot(w, h) * 1.45);
+  mapEl.style.width = size + 'px';
+  mapEl.style.height = size + 'px';
+}
+
+function applyMapRotation() {
+  mapRotateWrapperEl.style.transform = (mapNorthLock || state.heading == null) ? '' : `rotate(${-state.heading}deg)`;
+}
+
+window.addEventListener('resize', () => {
+  if (document.getElementById('page-route').classList.contains('active')) {
+    sizeRotatedMap();
+    map.invalidateSize();
+  }
+});
+
+document.getElementById('map-north-lock').addEventListener('change', (e) => {
+  mapNorthLock = e.target.checked;
+  applyMapRotation();
+  saveSettings();
+});
 
 let boatMarker = null;
 let pinMarker = null;
@@ -145,6 +202,38 @@ function renderCog(cog, t) {
   cogDisplayLastRender = t;
 }
 
+// ---- compass/GPS heading fusion (Settings toggle, default off) ----
+// GPS course-over-ground is ground truth once actually sailing - compass
+// reads magnetic heading, which differs from COG by leeway/current and is
+// unreliable near rigging/metal. But GPS heading gets noisy/unreliable right
+// where a good heading matters most: pre-start maneuvering at low speed.
+// So: learn the (GPS cog - compass heading) offset only while moving at real
+// speed, then below that speed, use compass + learned offset instead.
+// Never feeds back into state.cog - see state.heading.
+let compassFusionEnabled = false;   // persisted setting
+let compassAvailable = null;        // null = waiting for a sample, true = active, false = unavailable
+let compassRawHeading = null;       // degrees clockwise from true/magnetic north, latest sample
+let compassOffset = null;           // slow EMA of angleDiff(gpsCog, compassRawHeading)
+let headingEma = null;              // smoothed GPS COG, used for display fallback + map rotation always
+
+function updateFusedHeading(cog, speedKn) {
+  if (!Number.isFinite(cog)) return; // guard against a NaN ever permanently poisoning the EMA/rotation
+  if (headingEma == null) headingEma = cog;
+  else headingEma = (headingEma + HEADING_EMA_ALPHA * angleDiff(cog, headingEma) + 360) % 360;
+
+  if (compassFusionEnabled && compassAvailable === true && speedKn > MOVING_MIN_SPEED_KN && compassRawHeading != null) {
+    const diff = angleDiff(cog, compassRawHeading);
+    compassOffset = (compassOffset == null) ? diff : compassOffset + COMPASS_OFFSET_ALPHA * angleDiff(diff, compassOffset);
+  }
+
+  if (compassFusionEnabled && compassAvailable === true && speedKn <= MOVING_MIN_SPEED_KN
+      && compassRawHeading != null && compassOffset != null) {
+    state.heading = ((compassRawHeading + compassOffset) % 360 + 360) % 360;
+  } else {
+    state.heading = headingEma;
+  }
+}
+
 function onPosition(pos) {
   const { latitude: lat, longitude: lon, speed, heading } = pos.coords;
   const t = pos.timestamp;
@@ -169,17 +258,19 @@ function onPosition(pos) {
   }
 
   state.speedKn = speedKn;
-  state.cog = cog;
+  state.cog = cog; // GPS-only - detectTack/recordHeadingSample/toGPX all depend on this staying pure GPS
   state.lastFix = { lat, lon, t };
+  updateFusedHeading(cog, speedKn);
 
   speedEl.textContent = speedKn.toFixed(1);
-  renderCog(cog, t);
+  renderCog((compassFusionEnabled && state.heading != null) ? state.heading : cog, t);
 
   updateBoatMarker(lat, lon);
   updateLineReadout();
   detectTack(cog);
   recordHeadingSample(t, cog, speedKn);
   updateAutoWind();
+  applyMapRotation();
 
   if (state.recording) {
     state.track.push({ lat, lon, t, speedKn, cog });
@@ -234,20 +325,108 @@ function onDeviceMotion(evt) {
   heelLastRender = now;
 }
 
-if (window.DeviceMotionEvent) {
-  if (typeof DeviceMotionEvent.requestPermission === 'function') {
-    // iOS-style permission gate; harmless no-op path on Android.
-    document.body.addEventListener('click', function requestOnce() {
+/* ---------- compass (deviceorientation) for COG fusion ---------- */
+const compassStatusEl = document.getElementById('compass-fusion-status');
+const compassEnabledEl = document.getElementById('compass-fusion-enabled');
+let sawAbsoluteOrientationEvent = false; // true once deviceorientationabsolute fires at least once
+
+function updateCompassStatus() {
+  if (compassAvailable === false) {
+    // Grey out rather than silently fuse garbage - unreliable heading feeding
+    // into COG/map-rotation would be worse than no fusion at all.
+    compassFusionEnabled = false;
+    compassEnabledEl.checked = false;
+    compassEnabledEl.disabled = true;
+    compassStatusEl.textContent = 'Compass fusion: unavailable on this device (no absolute orientation data)';
+    return;
+  }
+  compassEnabledEl.disabled = false;
+  if (compassAvailable === null) {
+    compassStatusEl.textContent = 'Compass fusion: waiting for absolute orientation data...';
+    return;
+  }
+  compassStatusEl.textContent = compassFusionEnabled
+    ? `Compass fusion: active (used below ${MOVING_MIN_SPEED_KN}kn)`
+    : 'Compass fusion: available - enable above to use it';
+}
+
+function handleCompassHeading(headingDeg) {
+  compassRawHeading = ((headingDeg % 360) + 360) % 360;
+  if (compassAvailable !== true) { compassAvailable = true; updateCompassStatus(); }
+}
+
+// Android: alpha is only earth-referenced ("absolute") on deviceorientationabsolute,
+// or on deviceorientation when evt.absolute === true - plain deviceorientation
+// alpha can otherwise be relative to whatever heading the device booted at.
+function onDeviceOrientationAbsolute(evt) {
+  sawAbsoluteOrientationEvent = true;
+  if (evt.alpha == null) return;
+  handleCompassHeading((360 - evt.alpha) % 360); // alpha is counterclockwise
+}
+
+function onDeviceOrientation(evt) {
+  if (typeof evt.webkitCompassHeading === 'number') {
+    // iOS: already clockwise-from-north, no conversion. Negative accuracy
+    // means the compass hasn't been calibrated yet - don't trust it.
+    if (evt.webkitCompassAccuracy != null && evt.webkitCompassAccuracy < 0) return;
+    handleCompassHeading(evt.webkitCompassHeading);
+    return;
+  }
+  if (sawAbsoluteOrientationEvent) return; // deviceorientationabsolute already covers this device
+  if (evt.absolute === true && evt.alpha != null) handleCompassHeading((360 - evt.alpha) % 360);
+}
+
+function attachOrientationListeners() {
+  window.addEventListener('deviceorientationabsolute', onDeviceOrientationAbsolute);
+  window.addEventListener('deviceorientation', onDeviceOrientation);
+  setTimeout(() => {
+    if (compassAvailable !== true) { compassAvailable = false; updateCompassStatus(); }
+  }, COMPASS_TIMEOUT_MS);
+}
+
+function markCompassUnavailable() { compassAvailable = false; updateCompassStatus(); }
+
+compassEnabledEl.addEventListener('change', (e) => {
+  compassFusionEnabled = e.target.checked;
+  updateCompassStatus();
+  saveSettings();
+});
+
+updateCompassStatus();
+
+/* ---------- sensor permission gate (devicemotion + deviceorientation) ---------- */
+// iOS gates both behind a user gesture via *Event.requestPermission(). Request
+// both on the same first tap rather than two separate {once:true} listeners,
+// which would race/duplicate the prompt.
+const motionNeedsPermission = !!window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function';
+const orientationNeedsPermission = !!window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function';
+
+if (motionNeedsPermission || orientationNeedsPermission) {
+  document.body.addEventListener('click', function requestSensorsOnce() {
+    document.body.removeEventListener('click', requestSensorsOnce);
+    if (motionNeedsPermission) {
       DeviceMotionEvent.requestPermission().then((res) => {
         if (res === 'granted') window.addEventListener('devicemotion', onDeviceMotion);
       }).catch(() => {});
-      document.body.removeEventListener('click', requestOnce);
-    }, { once: true });
-  } else {
-    window.addEventListener('devicemotion', onDeviceMotion);
-  }
+    } else if (window.DeviceMotionEvent) {
+      window.addEventListener('devicemotion', onDeviceMotion);
+    }
+    if (orientationNeedsPermission) {
+      DeviceOrientationEvent.requestPermission().then((res) => {
+        if (res === 'granted') attachOrientationListeners();
+        else markCompassUnavailable();
+      }).catch(markCompassUnavailable);
+    } else if (window.DeviceOrientationEvent) {
+      attachOrientationListeners();
+    } else {
+      markCompassUnavailable();
+    }
+  }, { once: true });
 } else {
-  heelEl.textContent = 'n/a';
+  if (window.DeviceMotionEvent) window.addEventListener('devicemotion', onDeviceMotion);
+  else heelEl.textContent = 'n/a';
+  if (window.DeviceOrientationEvent) attachOrientationListeners();
+  else markCompassUnavailable();
 }
 
 document.getElementById('heel-zero').addEventListener('click', () => {
@@ -999,6 +1178,8 @@ function saveSettings() {
       heelUpdateMs,
       heelZeroOffset,
       calibDurationS: parseInt(document.getElementById('calib-duration').value, 10) || 45,
+      compassFusionEnabled,
+      mapNorthLock,
     }));
   } catch (e) { /* storage unavailable, ignore */ }
 }
@@ -1033,8 +1214,17 @@ function loadSettings() {
   }
   if (typeof s.heelZeroOffset === 'number') heelZeroOffset = s.heelZeroOffset;
   if (typeof s.calibDurationS === 'number') document.getElementById('calib-duration').value = s.calibDurationS;
+  if (typeof s.compassFusionEnabled === 'boolean') {
+    compassFusionEnabled = s.compassFusionEnabled;
+    compassEnabledEl.checked = s.compassFusionEnabled;
+  }
+  if (typeof s.mapNorthLock === 'boolean') {
+    mapNorthLock = s.mapNorthLock;
+    document.getElementById('map-north-lock').checked = s.mapNorthLock;
+  }
 
   updateWindStatus();
+  updateCompassStatus();
 }
 
 loadSettings();
