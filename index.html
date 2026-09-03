@@ -20,29 +20,36 @@
 
   <!-- ================= INSTRUMENTS ================= -->
   <section class="page active" id="page-instruments">
-    <header class="page-header">INSTRUMENTS <span id="gps-status" class="hdr-status">searching...</span></header>
+    <header class="page-header">
+      <span class="page-title">INSTRUMENTS</span>
+      <span id="gps-status" class="hdr-status">searching...</span>
+      <button class="small-btn secondary" id="layout-edit-toggle" type="button">Edit</button>
+    </header>
 
     <div id="shift-banner" class="shift-banner" hidden></div>
 
     <div class="sub-readout" id="wind-status">Wind: -- | Tack: --</div>
 
-    <div class="tile-grid">
-      <div class="tile tile-wide">
+    <div class="tile-grid" id="instr-grid">
+      <div class="tile" data-block="sog">
         <div class="tile-label">SOG</div>
         <div class="tile-value"><span id="speed-value">--</span><span class="tile-unit">kn</span></div>
+        <div class="resize-handle"></div>
       </div>
 
-      <div class="tile">
+      <div class="tile" data-block="cog">
         <div class="tile-label">COG</div>
         <div class="tile-value small"><span id="cog-value">--</span><span class="tile-unit">&deg;</span></div>
+        <div class="resize-handle"></div>
       </div>
-      <div class="tile">
+      <div class="tile" data-block="heel">
         <div class="tile-label">HEEL</div>
         <div class="tile-value small"><span id="heel-value">--</span><span class="tile-unit">&deg;</span></div>
         <button class="small-btn secondary" id="heel-zero">Zero</button>
+        <div class="resize-handle"></div>
       </div>
 
-      <div class="tile tile-wide">
+      <div class="tile" data-block="timer">
         <div class="tile-label">START TIMER</div>
         <div class="tile-value" id="timer-value">5:00</div>
         <div class="row">
@@ -51,12 +58,14 @@
         <div class="row">
           <button id="timer-reset" class="secondary reset-btn hold-btn"><span class="fill"></span><span class="label">Hold to Reset</span></button>
         </div>
+        <div class="resize-handle"></div>
       </div>
 
-      <div class="tile tile-wide">
+      <div class="tile" data-block="line">
         <div class="tile-label">LINE</div>
         <div class="tile-value small" id="burn-value">--</div>
         <div class="tile-sub" id="line-readout">No line set</div>
+        <div class="resize-handle"></div>
       </div>
     </div>
   </section>

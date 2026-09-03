@@ -15,7 +15,11 @@ Three pages, like a real chartplotter/MFD, switched with the bottom tab bar:
   line + burn time = time-to-start minus time-to-line) once a line is set on
   the Route page. VMG is deferred until boat-specific polars exist — a
   generic speed*cos(angle) number isn't actually useful without a polar to
-  compare it against.
+  compare it against. Tiles are rearrangeable: tap **Edit** to drag them
+  around a 4-column grid and resize via a corner handle (each tile has its
+  own minimum size, e.g. the timer can't shrink below 4x4) — the layout is
+  saved and restored automatically, with a reset to the default arrangement
+  if nothing's been customized yet.
 - **Route** — the chart/map, pin-end and boat-end line pings, and session
   recording (start/stop).
 - **Settings** — wind direction, either typed in manually, fetched as a

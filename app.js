@@ -847,6 +847,254 @@ unlockBtn.addEventListener('pointerup', cancelUnlockHold);
 unlockBtn.addEventListener('pointerleave', cancelUnlockHold);
 unlockBtn.addEventListener('pointercancel', cancelUnlockHold);
 
+/* ---------- instruments layout (edit mode) ---------- */
+// "Android home screen" style block layout: each instrument tile is a block
+// on a 4-column grid at {x, y, w, h} (0-indexed cells). Positioning is done
+// entirely via inline grid-column/grid-row on the existing .tile elements -
+// their inner markup/IDs are never touched, so app.js's live GPS/timer/heel
+// wiring elsewhere (which queries those IDs directly) is unaffected by
+// anything in this section.
+const LAYOUT_COLS = 4;
+const LAYOUT_MAX_ROWS = 24; // generous ceiling for moves/resizes, not a real UI limit
+const MAX_BLOCK_H = 6;
+
+// Per-block minimum size in cells. Not a uniform 2x2 - the timer block has a
+// big numeric readout plus two full-width buttons and the line block needs
+// full width for its distance/bias text, so both need more room than a
+// single-readout tile like SOG/COG/HEEL.
+const BLOCK_MIN = {
+  sog: { w: 2, h: 2 },
+  cog: { w: 2, h: 2 },
+  heel: { w: 2, h: 2 },
+  timer: { w: 4, h: 4 },
+  line: { w: 4, h: 2 },
+};
+
+// Recreates today's fixed arrangement: SOG wide, COG+HEEL side by side,
+// START TIMER wide, LINE wide.
+const DEFAULT_LAYOUT = [
+  { id: 'sog', x: 0, y: 0, w: 4, h: 2 },
+  { id: 'cog', x: 0, y: 2, w: 2, h: 2 },
+  { id: 'heel', x: 2, y: 2, w: 2, h: 2 },
+  { id: 'timer', x: 0, y: 4, w: 4, h: 4 },
+  { id: 'line', x: 0, y: 8, w: 4, h: 2 },
+];
+
+const LAYOUT_KEY = 'rc_layout';
+let layout = DEFAULT_LAYOUT.map((b) => ({ ...b }));
+
+const instrGrid = document.getElementById('instr-grid');
+const layoutEditToggle = document.getElementById('layout-edit-toggle');
+let editMode = false;
+
+function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+
+function rectsOverlap(a, b) {
+  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+}
+
+// Would `candidate` (a block's proposed new x/y/w/h) fit on the grid without
+// overlapping any other block? No reflow/compaction - a blocked drop is
+// simply rejected and the caller snaps the block back.
+function fits(candidate, excludeId) {
+  if (candidate.x < 0 || candidate.y < 0) return false;
+  if (candidate.x + candidate.w > LAYOUT_COLS) return false;
+  if (candidate.y + candidate.h > LAYOUT_MAX_ROWS) return false;
+  return !layout.some((b) => b.id !== excludeId && rectsOverlap(candidate, b));
+}
+
+// Bigger blocks get bigger readouts, smaller blocks get smaller ones: scale
+// is 1 at a block's *default* size (so the stock layout renders exactly like
+// today's fixed one) and moves with the square root of the area ratio -
+// clamped so a huge block doesn't blow past its container and a tiny one
+// doesn't shrink to nothing.
+function scaleFor(block) {
+  const base = DEFAULT_LAYOUT.find((d) => d.id === block.id);
+  const ratio = (block.w * block.h) / (base.w * base.h);
+  return clamp(Math.sqrt(ratio), 0.6, 1.6);
+}
+
+function applyLayout() {
+  layout.forEach((b) => {
+    const el = instrGrid.querySelector(`.tile[data-block="${b.id}"]`);
+    if (!el) return;
+    el.style.gridColumn = `${b.x + 1} / span ${b.w}`;
+    el.style.gridRow = `${b.y + 1} / span ${b.h}`;
+    el.style.setProperty('--tile-scale', scaleFor(b).toFixed(2));
+  });
+}
+
+function saveLayout() {
+  try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch (e) { /* storage unavailable, ignore */ }
+}
+
+function loadLayout() {
+  try {
+    const raw = localStorage.getItem(LAYOUT_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Only trust the stored layout if it covers every block id we know
+      // about today - otherwise (older/newer app version, corrupt data)
+      // fall back to the default rather than rendering a partial layout.
+      if (Array.isArray(parsed) && DEFAULT_LAYOUT.every((d) => parsed.some((p) => p && p.id === d.id))) {
+        layout = DEFAULT_LAYOUT.map((d) => {
+          const stored = parsed.find((p) => p.id === d.id);
+          const min = BLOCK_MIN[d.id];
+          const w = clamp(Math.round(stored.w), min.w, LAYOUT_COLS);
+          const h = clamp(Math.round(stored.h), min.h, MAX_BLOCK_H);
+          return {
+            id: d.id,
+            x: clamp(Math.round(stored.x), 0, LAYOUT_COLS - w),
+            y: clamp(Math.round(stored.y), 0, LAYOUT_MAX_ROWS - h),
+            w, h,
+          };
+        });
+      }
+    }
+  } catch (e) { /* corrupt storage, keep default */ }
+  applyLayout();
+}
+
+layoutEditToggle.addEventListener('click', () => {
+  editMode = !editMode;
+  instrGrid.classList.toggle('edit-mode', editMode);
+  layoutEditToggle.textContent = editMode ? 'Done' : 'Edit';
+});
+
+// Cell geometry, measured live (not hardcoded) so it stays correct across
+// orientation changes / different phones. Row height comes from the same
+// --cell-h custom property the CSS grid itself uses, so JS's drag math and
+// the actual rendered grid can never drift apart.
+function gridMetrics() {
+  const rect = instrGrid.getBoundingClientRect();
+  const style = getComputedStyle(instrGrid);
+  const gap = parseFloat(style.rowGap) || 10;
+  const cellW = (rect.width - gap * (LAYOUT_COLS - 1)) / LAYOUT_COLS;
+  const cellH = parseFloat(style.getPropertyValue('--cell-h')) || 56;
+  return { gap, cellW, cellH };
+}
+
+function flashReject(tile) {
+  tile.classList.remove('reject'); // restart the animation if triggered twice quickly
+  void tile.offsetWidth; // force reflow so removing+re-adding the class replays the keyframes
+  tile.classList.add('reject');
+}
+
+function startBlockMove(tile, block, downEvent) {
+  downEvent.preventDefault();
+  const { gap, cellW, cellH } = gridMetrics();
+  const startX = downEvent.clientX, startY = downEvent.clientY;
+  const orig = { x: block.x, y: block.y };
+  let dCellsX = 0, dCellsY = 0;
+
+  tile.classList.add('dragging');
+  tile.setPointerCapture(downEvent.pointerId);
+
+  function onMove(ev) {
+    const dxPx = ev.clientX - startX;
+    const dyPx = ev.clientY - startY;
+    dCellsX = Math.round(dxPx / (cellW + gap));
+    dCellsY = Math.round(dyPx / (cellH + gap));
+    tile.style.transform = `translate(${dxPx}px, ${dyPx}px)`;
+  }
+
+  function onUp() {
+    tile.removeEventListener('pointermove', onMove);
+    tile.removeEventListener('pointerup', onUp);
+    tile.removeEventListener('pointercancel', onUp);
+    tile.classList.remove('dragging');
+    tile.style.transform = '';
+
+    const candidate = {
+      x: clamp(orig.x + dCellsX, 0, LAYOUT_COLS - block.w),
+      y: clamp(orig.y + dCellsY, 0, LAYOUT_MAX_ROWS - block.h),
+      w: block.w, h: block.h,
+    };
+    const moved = candidate.x !== orig.x || candidate.y !== orig.y;
+    if (moved && fits(candidate, block.id)) {
+      block.x = candidate.x;
+      block.y = candidate.y;
+      applyLayout();
+      saveLayout();
+    } else if (moved) {
+      flashReject(tile); // blocked by another tile or the grid edge - snap back (no auto-reflow)
+    }
+  }
+
+  tile.addEventListener('pointermove', onMove);
+  tile.addEventListener('pointerup', onUp);
+  tile.addEventListener('pointercancel', onUp);
+}
+
+function startBlockResize(tile, block, downEvent) {
+  downEvent.preventDefault();
+  downEvent.stopPropagation(); // don't also trigger startBlockMove on the parent tile
+  const min = BLOCK_MIN[block.id];
+  const { gap, cellW, cellH } = gridMetrics();
+  const startX = downEvent.clientX, startY = downEvent.clientY;
+  const orig = { w: block.w, h: block.h };
+  let w = orig.w, h = orig.h;
+
+  const handleEl = downEvent.target; // capture once - onMove/onUp must (de)register on this exact element
+  tile.classList.add('dragging');
+  tile.style.zIndex = 10;
+  handleEl.setPointerCapture(downEvent.pointerId);
+
+  function onMove(ev) {
+    const dxPx = ev.clientX - startX;
+    const dyPx = ev.clientY - startY;
+    w = clamp(orig.w + Math.round(dxPx / (cellW + gap)), min.w, LAYOUT_COLS - block.x);
+    h = clamp(orig.h + Math.round(dyPx / (cellH + gap)), min.h, MAX_BLOCK_H);
+    // Live preview in px, independent of the block's actual grid track, so
+    // growing the block visually overlaps neighbours during the drag itself
+    // (purely cosmetic feedback) - final placement is only decided on release.
+    tile.style.width = `${w * cellW + (w - 1) * gap}px`;
+    tile.style.height = `${h * cellH + (h - 1) * gap}px`;
+  }
+
+  function onUp() {
+    handleEl.removeEventListener('pointermove', onMove);
+    handleEl.removeEventListener('pointerup', onUp);
+    handleEl.removeEventListener('pointercancel', onUp);
+    tile.classList.remove('dragging');
+    tile.style.zIndex = '';
+    tile.style.width = '';
+    tile.style.height = '';
+
+    const candidate = { x: block.x, y: block.y, w, h };
+    const resized = w !== orig.w || h !== orig.h;
+    if (resized && fits(candidate, block.id)) {
+      block.w = w;
+      block.h = h;
+      applyLayout();
+      saveLayout();
+    } else if (resized) {
+      flashReject(tile);
+    }
+  }
+
+  handleEl.addEventListener('pointermove', onMove);
+  handleEl.addEventListener('pointerup', onUp);
+  handleEl.addEventListener('pointercancel', onUp);
+}
+
+instrGrid.querySelectorAll('.tile[data-block]').forEach((tile) => {
+  const id = tile.dataset.block;
+  const handle = tile.querySelector('.resize-handle');
+
+  tile.addEventListener('pointerdown', (e) => {
+    if (!editMode || e.target.closest('.resize-handle')) return;
+    const block = layout.find((b) => b.id === id);
+    startBlockMove(tile, block, e);
+  });
+
+  handle.addEventListener('pointerdown', (e) => {
+    if (!editMode) return;
+    const block = layout.find((b) => b.id === id);
+    startBlockResize(tile, block, e);
+  });
+});
+
 function trackDistanceM(points) {
   let d = 0;
   const pts = points.filter(p => p.lat != null);
@@ -1099,6 +1347,7 @@ function loadSettings() {
 }
 
 loadSettings();
+loadLayout();
 
 /* ---------- service worker ---------- */
 if ('serviceWorker' in navigator) {
