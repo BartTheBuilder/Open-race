@@ -237,14 +237,17 @@ if (window.DeviceMotionEvent) {
 document.getElementById('heel-zero').addEventListener('click', () => {
   const raw = parseFloat(heelEl.dataset.raw);
   if (!Number.isNaN(raw)) heelZeroOffset = raw;
+  saveSettings();
 });
 
 document.getElementById('heel-rate').addEventListener('change', (e) => {
   heelUpdateMs = parseInt(e.target.value, 10) || 0;
+  saveSettings();
 });
 
 document.getElementById('cog-rate').addEventListener('change', (e) => {
   cogUpdateMs = parseInt(e.target.value, 10) || 0;
+  saveSettings();
 });
 
 /* ---------- wind ---------- */
@@ -252,6 +255,7 @@ const windInput = document.getElementById('wind-input');
 windInput.addEventListener('change', () => {
   state.windDir = ((parseInt(windInput.value, 10) || 0) % 360 + 360) % 360;
   updateLineReadout();
+  saveSettings();
 });
 document.querySelectorAll('[data-nudge]').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -259,6 +263,7 @@ document.querySelectorAll('[data-nudge]').forEach(btn => {
     state.windDir = ((state.windDir + delta) % 360 + 360) % 360;
     windInput.value = state.windDir;
     updateLineReadout();
+    saveSettings();
   });
 });
 
@@ -280,6 +285,7 @@ document.getElementById('fetch-wind').addEventListener('click', async () => {
     state.windDir = ((dir % 360) + 360) % 360;
     windInput.value = state.windDir;
     updateLineReadout();
+    saveSettings();
     statusEl.textContent = `Forecast: ${state.windDir}° @ ${spd.toFixed(1)}kn - regional estimate, refine with calibration`;
   } catch (e) {
     statusEl.textContent = 'Fetch failed (no signal?): ' + e.message;
@@ -356,6 +362,7 @@ function tickCalibration() {
   updateWindStatus();
   calibStatusEl.textContent = 'Calibration complete';
   calibDetailEl.textContent = `Tack angle ${tackAngleDeg}° | Wind set to ${windDir}° (stbd ${Math.round(calib.hstbd)}°, port ${Math.round(hport)}°)`;
+  saveSettings();
 }
 
 calibStartBtn.addEventListener('click', () => {
@@ -369,6 +376,7 @@ document.querySelectorAll('[data-calib-nudge]').forEach((btn) => {
     const delta = parseInt(btn.dataset.calibNudge, 10);
     const next = Math.min(180, Math.max(15, (parseInt(durationInput.value, 10) || 45) + delta));
     durationInput.value = next;
+    saveSettings();
   });
 });
 
@@ -542,11 +550,13 @@ updateWindStatus();
 
 document.getElementById('auto-wind-enabled').addEventListener('change', (e) => {
   state.autoWindEnabled = e.target.checked;
+  saveSettings();
 });
 
 function setAutoWindWindow(minutes) {
   state.autoWindWindowMin = Math.min(10, Math.max(1, minutes));
   document.getElementById('auto-wind-window').value = state.autoWindWindowMin;
+  saveSettings();
 }
 document.getElementById('auto-wind-window').addEventListener('change', (e) => {
   setAutoWindWindow(parseInt(e.target.value, 10) || 4);
@@ -904,6 +914,63 @@ function renderSessionsList() {
 }
 
 renderSessionsList();
+
+/* ---------- settings persistence ---------- */
+// Everything the user configures (as opposed to live/derived values like the
+// continuously-drifting auto-wind direction) survives a reload - a setting
+// that resets every launch is useless on a boat. New settings added later
+// should be folded into this one save/load pair rather than growing their
+// own ad hoc storage keys.
+const SETTINGS_KEY = 'rc_settings';
+
+function saveSettings() {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+      windDir: state.windDir,
+      autoWindEnabled: state.autoWindEnabled,
+      autoWindWindowMin: state.autoWindWindowMin,
+      tackAngleDeg: state.tackAngleDeg,
+      cogUpdateMs,
+      heelUpdateMs,
+      heelZeroOffset,
+      calibDurationS: parseInt(document.getElementById('calib-duration').value, 10) || 45,
+    }));
+  } catch (e) { /* storage unavailable, ignore */ }
+}
+
+function loadSettings() {
+  let s;
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return;
+    s = JSON.parse(raw);
+  } catch (e) { return; }
+
+  if (typeof s.windDir === 'number') { state.windDir = s.windDir; windInput.value = s.windDir; }
+  if (typeof s.autoWindEnabled === 'boolean') {
+    state.autoWindEnabled = s.autoWindEnabled;
+    document.getElementById('auto-wind-enabled').checked = s.autoWindEnabled;
+  }
+  if (typeof s.autoWindWindowMin === 'number') {
+    state.autoWindWindowMin = s.autoWindWindowMin;
+    document.getElementById('auto-wind-window').value = s.autoWindWindowMin;
+  }
+  if (typeof s.tackAngleDeg === 'number') state.tackAngleDeg = s.tackAngleDeg;
+  if (typeof s.cogUpdateMs === 'number') {
+    cogUpdateMs = s.cogUpdateMs;
+    document.getElementById('cog-rate').value = String(s.cogUpdateMs);
+  }
+  if (typeof s.heelUpdateMs === 'number') {
+    heelUpdateMs = s.heelUpdateMs;
+    document.getElementById('heel-rate').value = String(s.heelUpdateMs);
+  }
+  if (typeof s.heelZeroOffset === 'number') heelZeroOffset = s.heelZeroOffset;
+  if (typeof s.calibDurationS === 'number') document.getElementById('calib-duration').value = s.calibDurationS;
+
+  updateWindStatus();
+}
+
+loadSettings();
 
 /* ---------- service worker ---------- */
 if ('serviceWorker' in navigator) {
