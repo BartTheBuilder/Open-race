@@ -111,6 +111,16 @@
     </div>
 
     <div class="panel">
+      <label>Tack angle (°)</label>
+      <div class="tile-sub">Auto-detected once you've sailed both tacks. Typing a value here locks it - auto-wind stops overwriting it until you toggle auto-wind off then on, or run calibration again.</div>
+      <div class="row">
+        <button class="nudge" data-tack-nudge="-1">-1</button>
+        <input id="tack-angle-input" type="number" min="20" max="160" value="">
+        <button class="nudge" data-tack-nudge="1">+1</button>
+      </div>
+    </div>
+
+    <div class="panel">
       <label>Auto wind from tacking</label>
       <div class="tile-sub">Once you've been sailing upwind on both tacks, wind direction keeps correcting itself from your average heading on each tack over a rolling window - no need to recalibrate every shift. You'll also get a HEADER/LIFT alert on the Instruments page when it moves.</div>
       <div class="row">

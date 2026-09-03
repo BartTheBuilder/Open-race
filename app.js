@@ -16,7 +16,9 @@ const state = {
   speedKn: null,
   cog: null,             // course over ground, degrees true
   windDir: 0,
+  windSource: 'auto',       // 'manual' locks windDir - auto-wind won't overwrite it
   tackAngleDeg: null,
+  tackAngleSource: 'auto',  // 'manual' locks tackAngleDeg - auto-wind won't overwrite it
   pin: null,             // {lat, lon}
   boat: null,            // {lat, lon}
   timerEndAt: null,      // epoch ms when the countdown hits 0
@@ -254,15 +256,19 @@ document.getElementById('cog-rate').addEventListener('change', (e) => {
 const windInput = document.getElementById('wind-input');
 windInput.addEventListener('change', () => {
   state.windDir = ((parseInt(windInput.value, 10) || 0) % 360 + 360) % 360;
+  state.windSource = 'manual';
   updateLineReadout();
+  updateWindStatus();
   saveSettings();
 });
 document.querySelectorAll('[data-nudge]').forEach(btn => {
   btn.addEventListener('click', () => {
     const delta = parseInt(btn.dataset.nudge, 10);
     state.windDir = ((state.windDir + delta) % 360 + 360) % 360;
+    state.windSource = 'manual';
     windInput.value = state.windDir;
     updateLineReadout();
+    updateWindStatus();
     saveSettings();
   });
 });
@@ -283,13 +289,34 @@ document.getElementById('fetch-wind').addEventListener('click', async () => {
     const dir = Math.round(data.current.wind_direction_10m);
     const spd = data.current.wind_speed_10m;
     state.windDir = ((dir % 360) + 360) % 360;
+    state.windSource = 'manual';
     windInput.value = state.windDir;
     updateLineReadout();
+    updateWindStatus();
     saveSettings();
     statusEl.textContent = `Forecast: ${state.windDir}° @ ${spd.toFixed(1)}kn - regional estimate, refine with calibration`;
   } catch (e) {
     statusEl.textContent = 'Fetch failed (no signal?): ' + e.message;
   }
+});
+
+const tackAngleInput = document.getElementById('tack-angle-input');
+function setTackAngleManual(value) {
+  state.tackAngleDeg = Math.min(160, Math.max(20, value));
+  state.tackAngleSource = 'manual';
+  tackAngleInput.value = state.tackAngleDeg;
+  updateWindStatus();
+  saveSettings();
+}
+tackAngleInput.addEventListener('change', () => {
+  const v = parseInt(tackAngleInput.value, 10);
+  if (!Number.isNaN(v)) setTackAngleManual(v);
+});
+document.querySelectorAll('[data-tack-nudge]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const current = state.tackAngleDeg != null ? state.tackAngleDeg : 90;
+    setTackAngleManual(current + parseInt(btn.dataset.tackNudge, 10));
+  });
 });
 
 /* ---------- wind & tack-angle calibration ---------- */
@@ -355,7 +382,9 @@ function tickCalibration() {
   const tackAngleDeg = Math.round(Math.abs(angleDiff(calib.hstbd, hport)));
   const windDir = Math.round(circularMeanDeg([calib.hstbd, hport]));
   state.windDir = windDir;
+  state.windSource = 'auto';
   state.tackAngleDeg = tackAngleDeg;
+  state.tackAngleSource = 'auto';
   windInput.value = windDir;
   updateLineReadout();
   lastNotifiedWindDir = windDir;
@@ -514,12 +543,18 @@ function updateAutoWind() {
   const newWindDir = Math.round(circularMeanDeg([meanStbd, meanPort]));
   const newTackAngle = Math.round(Math.abs(angleDiff(meanStbd, meanPort)));
 
-  if (lastNotifiedWindDir === null) lastNotifiedWindDir = state.windDir;
-  checkForShift(newWindDir);
-
-  state.windDir = newWindDir;
-  state.tackAngleDeg = newTackAngle;
-  windInput.value = newWindDir;
+  // Manual overrides (typed wind or tack angle) are locked independently -
+  // auto-wind keeps computing in the background but won't write over a
+  // locked field, so a typed value doesn't get silently clobbered.
+  if (state.windSource !== 'manual') {
+    if (lastNotifiedWindDir === null) lastNotifiedWindDir = state.windDir;
+    checkForShift(newWindDir);
+    state.windDir = newWindDir;
+    windInput.value = newWindDir;
+  }
+  if (state.tackAngleSource !== 'manual') {
+    state.tackAngleDeg = newTackAngle;
+  }
   updateLineReadout();
   updateWindStatus();
 }
@@ -542,14 +577,28 @@ function showShiftBanner(isLift, degrees) {
 }
 
 function updateWindStatus() {
-  const tackTxt = state.tackAngleDeg != null ? `${state.tackAngleDeg}°` : '--';
-  windStatusEl.textContent = `Wind: ${Math.round(state.windDir)}° | Tack: ${tackTxt}`;
+  const tackTxt = state.tackAngleDeg != null
+    ? `${state.tackAngleDeg}°${state.tackAngleSource === 'manual' ? ' (manual)' : ''}`
+    : '--';
+  const windTxt = `${Math.round(state.windDir)}°${state.windSource === 'manual' ? ' (manual)' : ''}`;
+  windStatusEl.textContent = `Wind: ${windTxt} | Tack: ${tackTxt}`;
+
+  if (state.tackAngleDeg != null && document.activeElement !== tackAngleInput) {
+    tackAngleInput.value = state.tackAngleDeg;
+  }
 }
 
 updateWindStatus();
 
 document.getElementById('auto-wind-enabled').addEventListener('change', (e) => {
   state.autoWindEnabled = e.target.checked;
+  if (e.target.checked) {
+    // Re-enabling auto-wind is an explicit "trust it again" action - release
+    // any manual locks so it actually resumes updating.
+    state.windSource = 'auto';
+    state.tackAngleSource = 'auto';
+  }
+  updateWindStatus();
   saveSettings();
 });
 
@@ -927,9 +976,11 @@ function saveSettings() {
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({
       windDir: state.windDir,
+      windSource: state.windSource,
       autoWindEnabled: state.autoWindEnabled,
       autoWindWindowMin: state.autoWindWindowMin,
       tackAngleDeg: state.tackAngleDeg,
+      tackAngleSource: state.tackAngleSource,
       cogUpdateMs,
       heelUpdateMs,
       heelZeroOffset,
@@ -947,6 +998,7 @@ function loadSettings() {
   } catch (e) { return; }
 
   if (typeof s.windDir === 'number') { state.windDir = s.windDir; windInput.value = s.windDir; }
+  if (s.windSource === 'manual' || s.windSource === 'auto') state.windSource = s.windSource;
   if (typeof s.autoWindEnabled === 'boolean') {
     state.autoWindEnabled = s.autoWindEnabled;
     document.getElementById('auto-wind-enabled').checked = s.autoWindEnabled;
@@ -956,6 +1008,7 @@ function loadSettings() {
     document.getElementById('auto-wind-window').value = s.autoWindWindowMin;
   }
   if (typeof s.tackAngleDeg === 'number') state.tackAngleDeg = s.tackAngleDeg;
+  if (s.tackAngleSource === 'manual' || s.tackAngleSource === 'auto') state.tackAngleSource = s.tackAngleSource;
   if (typeof s.cogUpdateMs === 'number') {
     cogUpdateMs = s.cogUpdateMs;
     document.getElementById('cog-rate').value = String(s.cogUpdateMs);
