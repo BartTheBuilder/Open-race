@@ -634,11 +634,24 @@ document.querySelectorAll('[data-calib-nudge]').forEach((btn) => {
 const lineReadoutEl = document.getElementById('line-readout');
 const burnValueEl = document.getElementById('burn-value');
 
+// Line-end markers are draggable so a GPS ping can be nudged to the actual
+// pin/boat position afterward (GPS accuracy at the moment of pinging isn't
+// always exact).
+function wireLineEndDrag(marker, applyPosition) {
+  marker.on('dragend', () => {
+    const { lat, lng } = marker.getLatLng();
+    applyPosition({ lat, lon: lng });
+    redrawLine();
+    updateLineReadout();
+  });
+}
+
 document.getElementById('ping-pin').addEventListener('click', () => {
   if (!state.lastFix) return;
   state.pin = { lat: state.lastFix.lat, lon: state.lastFix.lon };
   if (pinMarker) map.removeLayer(pinMarker);
-  pinMarker = L.marker([state.pin.lat, state.pin.lon], { icon: lineEndIcon('P'), title: 'Pin' }).addTo(map);
+  pinMarker = L.marker([state.pin.lat, state.pin.lon], { icon: lineEndIcon('P'), title: 'Pin', draggable: true }).addTo(map);
+  wireLineEndDrag(pinMarker, (p) => { state.pin = p; });
   redrawLine();
   updateLineReadout();
 });
@@ -647,7 +660,8 @@ document.getElementById('ping-boat').addEventListener('click', () => {
   if (!state.lastFix) return;
   state.boat = { lat: state.lastFix.lat, lon: state.lastFix.lon };
   if (boatEndMarker) map.removeLayer(boatEndMarker);
-  boatEndMarker = L.marker([state.boat.lat, state.boat.lon], { icon: lineEndIcon('CB'), title: 'Committee Boat' }).addTo(map);
+  boatEndMarker = L.marker([state.boat.lat, state.boat.lon], { icon: lineEndIcon('CB'), title: 'Committee Boat', draggable: true }).addTo(map);
+  wireLineEndDrag(boatEndMarker, (p) => { state.boat = p; });
   redrawLine();
   updateLineReadout();
 });

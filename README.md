@@ -21,10 +21,11 @@ Three pages, like a real chartplotter/MFD, switched with the bottom tab bar:
   saved and restored automatically, with a reset to the default arrangement
   if nothing's been customized yet.
 - **Route** — the chart/map, pin-end and boat-end line pings, and session
-  recording (start/stop). The map rotates heading-up by default, like a
-  chartplotter (a "Lock map to North" setting turns this off), rotating off a
-  smoothed heading rather than raw GPS course so it doesn't swing with normal
-  low-speed COG jitter.
+  recording (start/stop). Both line-end markers are draggable, so a GPS ping
+  can be nudged to the actual position afterward. The map rotates heading-up
+  by default, like a chartplotter (a "Lock map to North" setting turns this
+  off), rotating off a smoothed heading rather than raw GPS course so it
+  doesn't swing with normal low-speed COG jitter.
 - **Settings** — wind direction, either typed in manually, fetched as a
   regional forecast estimate (Open-Meteo, free, no key), or measured directly
   by **sailing both tacks**: hold steady close-hauled on starboard, tack, hold
