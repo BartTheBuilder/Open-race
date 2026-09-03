@@ -203,6 +203,22 @@ button:active { filter: brightness(0.85); }
 
 #map { flex: 1; min-height: 220px; border-radius: 4px; overflow: hidden; filter: grayscale(0.3) brightness(0.9); }
 
+.line-end-icon { background: transparent; border: none; }
+.line-end-circle {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--amber);
+  background: rgba(0, 0, 0, 0.75);
+  color: var(--amber);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
 #sessions-list { display: flex; flex-direction: column; gap: 8px; }
 .session-row {
   display: flex;

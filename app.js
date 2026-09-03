@@ -104,11 +104,25 @@ function updateBoatMarker(lat, lon) {
   }
 }
 
+// Circle-in-a-div markers instead of Leaflet's default pin icon: the default
+// pulls PNGs from unpkg, which breaks offline (exactly when this matters
+// most, mid-race with no signal) and doesn't give a precise center point the
+// way a plain circle does.
+const LINE_COLOR = '#ffb020';
+function lineEndIcon(label) {
+  return L.divIcon({
+    className: 'line-end-icon',
+    html: `<div class="line-end-circle">${label}</div>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+  });
+}
+
 function redrawLine() {
   if (lineLayer) { map.removeLayer(lineLayer); lineLayer = null; }
   if (state.pin && state.boat) {
     lineLayer = L.polyline([[state.pin.lat, state.pin.lon], [state.boat.lat, state.boat.lon]],
-      { color: '#ffb020', weight: 3, dashArray: '6 6' }).addTo(map);
+      { color: LINE_COLOR, weight: 3, dashArray: '6 6' }).addTo(map);
   }
 }
 
@@ -417,7 +431,7 @@ document.getElementById('ping-pin').addEventListener('click', () => {
   if (!state.lastFix) return;
   state.pin = { lat: state.lastFix.lat, lon: state.lastFix.lon };
   if (pinMarker) map.removeLayer(pinMarker);
-  pinMarker = L.marker([state.pin.lat, state.pin.lon], { title: 'Pin' }).addTo(map);
+  pinMarker = L.marker([state.pin.lat, state.pin.lon], { icon: lineEndIcon('P'), title: 'Pin' }).addTo(map);
   redrawLine();
   updateLineReadout();
 });
@@ -426,7 +440,7 @@ document.getElementById('ping-boat').addEventListener('click', () => {
   if (!state.lastFix) return;
   state.boat = { lat: state.lastFix.lat, lon: state.lastFix.lon };
   if (boatEndMarker) map.removeLayer(boatEndMarker);
-  boatEndMarker = L.marker([state.boat.lat, state.boat.lon], { title: 'Committee Boat' }).addTo(map);
+  boatEndMarker = L.marker([state.boat.lat, state.boat.lon], { icon: lineEndIcon('CB'), title: 'Committee Boat' }).addTo(map);
   redrawLine();
   updateLineReadout();
 });
