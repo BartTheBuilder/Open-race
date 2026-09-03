@@ -63,7 +63,26 @@ const state = {
   autoWindWindowMin: 4,
   headingLog: [],        // rolling {t, cog} samples while moving, for auto wind + header/lift detection
   locked: false,
+  speedUnit: 'kn',       // 'kn' | 'kmh' | 'mph' - SOG display only, internal speedKn stays knots
+  windSpeedUnit: 'kn',   // 'kn' | 'kmh' | 'mph' - forecast wind speed display only
+  distanceUnit: 'km',    // 'km' | 'nm' | 'mi' - recorded-track distance displays only
 };
+
+/* ---------- unit conversion (display only - internal values stay knots/meters) ---------- */
+const KN_TO_UNIT = { kn: 1, kmh: 1.852, mph: 1.150779 };
+const UNIT_LABEL = { kn: 'kn', kmh: 'km/h', mph: 'mph' };
+const KM_TO_UNIT = { km: 1, nm: 1 / 1.852, mi: 1 / 1.609344 };
+const DIST_UNIT_LABEL = { km: 'km', nm: 'nm', mi: 'mi' };
+
+function formatSpeed(kn) {
+  const factor = KN_TO_UNIT[state.speedUnit] || 1;
+  return { text: (kn * factor).toFixed(1), unit: UNIT_LABEL[state.speedUnit] || 'kn' };
+}
+
+function formatDistanceKm(km) {
+  const factor = KM_TO_UNIT[state.distanceUnit] || 1;
+  return { text: (km * factor).toFixed(2), unit: DIST_UNIT_LABEL[state.distanceUnit] || 'km' };
+}
 
 /* ---------- page navigation ---------- */
 document.querySelectorAll('#tabbar .tab').forEach((btn) => {
@@ -173,6 +192,7 @@ let boatMarker = null;
 let pinMarker = null;
 let boatEndMarker = null;
 let lineLayer = null;
+let viewedSessionLayer = null; // a past recorded session's track, shown via the session list's "View" button
 let trackLayer = L.polyline([], { color: THEME_MAP_COLORS[currentTheme].track, weight: 3 }).addTo(map);
 let firstFix = true;
 
@@ -214,6 +234,7 @@ function redrawLine() {
 /* ---------- GPS ---------- */
 const gpsStatusEl = document.getElementById('gps-status');
 const speedEl = document.getElementById('speed-value');
+const speedUnitEl = document.getElementById('speed-unit');
 const cogEl = document.getElementById('cog-value');
 const heelEl = document.getElementById('heel-value');
 
@@ -290,7 +311,9 @@ function onPosition(pos) {
   state.lastFix = { lat, lon, t };
   updateFusedHeading(cog, speedKn);
 
-  speedEl.textContent = speedKn.toFixed(1);
+  const speedFmt = formatSpeed(speedKn);
+  speedEl.textContent = speedFmt.text;
+  speedUnitEl.textContent = speedFmt.unit;
   renderCog((compassFusionEnabled && state.heading != null) ? state.heading : cog, t);
 
   updateBoatMarker(lat, lon);
@@ -473,6 +496,26 @@ document.getElementById('cog-rate').addEventListener('change', (e) => {
   saveSettings();
 });
 
+document.getElementById('speed-unit-select').addEventListener('change', (e) => {
+  state.speedUnit = e.target.value;
+  const fmt = formatSpeed(state.speedKn != null ? state.speedKn : 0);
+  speedUnitEl.textContent = fmt.unit;
+  if (state.speedKn != null) speedEl.textContent = fmt.text;
+  saveSettings();
+});
+
+document.getElementById('wind-speed-unit-select').addEventListener('change', (e) => {
+  state.windSpeedUnit = e.target.value;
+  saveSettings();
+});
+
+document.getElementById('distance-unit-select').addEventListener('change', (e) => {
+  state.distanceUnit = e.target.value;
+  if (state.recording) updateRecordReadout();
+  renderSessionsList();
+  saveSettings();
+});
+
 /* ---------- wind ---------- */
 const windInput = document.getElementById('wind-input');
 windInput.addEventListener('change', () => {
@@ -503,7 +546,7 @@ document.getElementById('fetch-wind').addEventListener('click', async () => {
   statusEl.textContent = 'Fetching...';
   try {
     const { lat, lon } = state.lastFix;
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&current=wind_direction_10m,wind_speed_10m&wind_speed_unit=kn`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&current=wind_direction_10m,wind_speed_10m&wind_speed_unit=${state.windSpeedUnit}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
@@ -515,7 +558,7 @@ document.getElementById('fetch-wind').addEventListener('click', async () => {
     updateLineReadout();
     updateWindStatus();
     saveSettings();
-    statusEl.textContent = `Forecast: ${state.windDir}° @ ${spd.toFixed(1)}kn - regional estimate, refine with calibration`;
+    statusEl.textContent = `Forecast: ${state.windDir}° @ ${spd.toFixed(1)}${UNIT_LABEL[state.windSpeedUnit] || 'kn'} - regional estimate, refine with calibration`;
   } catch (e) {
     statusEl.textContent = 'Fetch failed (no signal?): ' + e.message;
   }
@@ -674,7 +717,27 @@ document.getElementById('clear-line').addEventListener('click', () => {
   redrawLine();
   lineReadoutEl.textContent = 'No line set';
   burnValueEl.textContent = '--';
+  if (viewedSessionLayer) { map.removeLayer(viewedSessionLayer); viewedSessionLayer = null; }
 });
+
+// Shows a past recorded session's track on the Route map (its own layer,
+// separate from the live track/line so it can't be mistaken for either) -
+// not a replay, just a static overview of where that session went.
+function viewSession(session) {
+  switchPage('route');
+  if (viewedSessionLayer) { map.removeLayer(viewedSessionLayer); viewedSessionLayer = null; }
+  const pts = session.points.filter((p) => p.lat != null).map((p) => [p.lat, p.lon]);
+  if (pts.length === 0) return;
+  const layers = [L.polyline(pts, { color: LINE_COLOR, weight: 3 })];
+  if (session.line) {
+    layers.push(L.polyline(
+      [[session.line.pin.lat, session.line.pin.lon], [session.line.boat.lat, session.line.boat.lon]],
+      { color: LINE_COLOR, weight: 2, dashArray: '4 4', opacity: 0.6 },
+    ));
+  }
+  viewedSessionLayer = L.layerGroup(layers).addTo(map);
+  map.fitBounds(L.latLngBounds(pts), { padding: [20, 20] });
+}
 
 // Perpendicular distance (m) from `p` to the line pin->boat, and whether
 // p is on the pre-start (line) side. Positive = short of the line.
@@ -1299,8 +1362,9 @@ function updateRecordReadout() {
   const elapsedS = Math.round((Date.now() - state.sessionStart) / 1000);
   const m = Math.floor(elapsedS / 60), s = elapsedS % 60;
   const distM = trackDistanceM(state.track);
+  const distFmt = formatDistanceKm(distM / 1000);
   recordReadoutEl.textContent =
-    `Recording: ${m}:${String(s).padStart(2, '0')} | ${(distM / 1000).toFixed(2)} km`;
+    `Recording: ${m}:${String(s).padStart(2, '0')} | ${distFmt.text} ${distFmt.unit}`;
 }
 
 recordBtn.addEventListener('click', () => {
@@ -1342,7 +1406,8 @@ function saveSession() {
   } catch (e) {
     console.warn('Could not save session (storage full?)', e);
   }
-  recordReadoutEl.textContent = `Saved: ${(session.distanceM / 1000).toFixed(2)} km`;
+  const savedFmt = formatDistanceKm(session.distanceM / 1000);
+  recordReadoutEl.textContent = `Saved: ${savedFmt.text} ${savedFmt.unit}`;
   renderSessionsList();
 }
 
@@ -1358,6 +1423,14 @@ function deleteSession(key) {
   localStorage.removeItem(key);
   const index = JSON.parse(localStorage.getItem('rc_sessions') || '[]').filter((k) => k !== key);
   localStorage.setItem('rc_sessions', JSON.stringify(index));
+  renderSessionsList();
+}
+
+function renameSession(key, name) {
+  const session = loadSession(key);
+  if (!session) return;
+  session.name = name.trim() || undefined; // empty name reverts to the default date-based label
+  try { localStorage.setItem(key, JSON.stringify(session)); } catch (e) { /* storage unavailable, ignore */ }
   renderSessionsList();
 }
 
@@ -1421,11 +1494,50 @@ function renderSessionsList() {
     const info = document.createElement('div');
     info.className = 'session-info';
     const durationMin = Math.round((session.endedAt - session.startedAt) / 60000);
-    info.innerHTML = `${new Date(session.startedAt).toLocaleString()}<br>` +
-      `<span class="muted">${(session.distanceM / 1000).toFixed(2)} km &middot; ${durationMin} min</span>`;
+    const rowDistFmt = formatDistanceKm(session.distanceM / 1000);
+    const defaultLabel = new Date(session.startedAt).toLocaleString();
+
+    const titleRow = document.createElement('div');
+    titleRow.className = 'session-title-row';
+    const titleText = document.createElement('span');
+    titleText.textContent = session.name || defaultLabel;
+    const renameBtn = document.createElement('button');
+    renameBtn.className = 'small-btn secondary session-rename-btn';
+    renameBtn.textContent = '✎'; // pencil
+    renameBtn.title = 'Rename';
+    renameBtn.addEventListener('click', () => {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'session-rename-input';
+      input.value = session.name || '';
+      input.placeholder = defaultLabel;
+      const commit = () => renameSession(key, input.value);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') input.blur();
+        if (e.key === 'Escape') { input.value = session.name || ''; input.blur(); }
+      });
+      input.addEventListener('blur', commit, { once: true });
+      titleRow.replaceChild(input, titleText);
+      input.focus();
+      input.select();
+    });
+    titleRow.appendChild(titleText);
+    titleRow.appendChild(renameBtn);
+
+    const subLine = document.createElement('div');
+    subLine.className = 'muted';
+    subLine.textContent = `${rowDistFmt.text} ${rowDistFmt.unit} · ${durationMin} min`;
+
+    info.appendChild(titleRow);
+    info.appendChild(subLine);
 
     const actions = document.createElement('div');
     actions.className = 'session-actions';
+
+    const viewBtn = document.createElement('button');
+    viewBtn.className = 'small-btn secondary';
+    viewBtn.textContent = 'View';
+    viewBtn.addEventListener('click', () => viewSession(session));
 
     const gpxBtn = document.createElement('button');
     gpxBtn.className = 'small-btn';
@@ -1437,9 +1549,10 @@ function renderSessionsList() {
 
     const delBtn = document.createElement('button');
     delBtn.className = 'small-btn secondary hold-btn';
-    delBtn.innerHTML = '<span class="fill"></span><span class="label">Hold to Delete</span>';
+    delBtn.innerHTML = '<span class="fill"></span><span class="label">Delete</span>';
     wireHoldToConfirm(delBtn, 1200, () => deleteSession(key));
 
+    actions.appendChild(viewBtn);
     actions.appendChild(gpxBtn);
     actions.appendChild(delBtn);
     row.appendChild(info);
@@ -1498,6 +1611,9 @@ function saveSettings() {
       theme: currentTheme,
       compassFusionEnabled,
       mapNorthLock,
+      speedUnit: state.speedUnit,
+      windSpeedUnit: state.windSpeedUnit,
+      distanceUnit: state.distanceUnit,
     }));
   } catch (e) { /* storage unavailable, ignore */ }
 }
@@ -1544,6 +1660,20 @@ function loadSettings() {
   if (typeof s.mapNorthLock === 'boolean') {
     mapNorthLock = s.mapNorthLock;
     document.getElementById('map-north-lock').checked = s.mapNorthLock;
+  }
+  if (KN_TO_UNIT[s.speedUnit]) {
+    state.speedUnit = s.speedUnit;
+    document.getElementById('speed-unit-select').value = s.speedUnit;
+    speedUnitEl.textContent = UNIT_LABEL[s.speedUnit];
+  }
+  if (KN_TO_UNIT[s.windSpeedUnit]) {
+    state.windSpeedUnit = s.windSpeedUnit;
+    document.getElementById('wind-speed-unit-select').value = s.windSpeedUnit;
+  }
+  if (KM_TO_UNIT[s.distanceUnit]) {
+    state.distanceUnit = s.distanceUnit;
+    document.getElementById('distance-unit-select').value = s.distanceUnit;
+    renderSessionsList(); // re-render: it already ran once at startup using the pre-load default unit
   }
 
   updateWindStatus();

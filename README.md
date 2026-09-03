@@ -38,10 +38,13 @@ Three pages, like a real chartplotter/MFD, switched with the bottom tab bar:
   assisted COG** toggle (default off) that fuses the phone's compass into the
   COG display at low speed, where GPS heading is noisiest and a good heading
   matters most (e.g. pre-start maneuvering) - GPS stays the sole source for
-  tack/wind detection and GPX export regardless. Also a **color theme**
-  picker (Default, Monochrome, Vintage Amber - the map track/line colors
-  switch with it too) and the list of recorded sessions with per-session
-  **GPX export** and delete.
+  tack/wind detection and GPX export regardless. Speed, wind speed, and
+  distance each have their own unit picker (knots/km/h/mph, km/nautical
+  miles/miles) so e.g. knots + kilometers is fine if that's what you want.
+  Also a **color theme** picker (Default, Monochrome, Vintage Amber - the map
+  track/line colors switch with it too) and the list of recorded sessions,
+  each renameable (pencil icon) with per-session **View** (shows the track on
+  the Route map), **GPX export**, and delete.
 
 Other notes:
 - **Header/lifter alerts**: when auto-wind detects the true wind has moved,

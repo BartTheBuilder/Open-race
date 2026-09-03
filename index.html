@@ -33,7 +33,7 @@
     <div class="tile-grid" id="instr-grid">
       <div class="tile" data-block="sog">
         <div class="tile-label">SOG</div>
-        <div class="tile-value"><span id="speed-value">--</span><span class="tile-unit">kn</span></div>
+        <div class="tile-value"><span id="speed-value">--</span><span class="tile-unit" id="speed-unit">kn</span></div>
         <div class="resize-handle"></div>
       </div>
 
@@ -143,6 +143,29 @@
         <input id="auto-wind-window" type="number" min="1" max="10" value="4">
         <button class="nudge" data-window-nudge="1">+1</button>
       </div>
+    </div>
+
+    <div class="panel">
+      <label>Units</label>
+      <div class="tile-sub">Each measurement can use whichever unit makes sense for it - a nautical speed with a metric distance is fine.</div>
+      <label>Speed (SOG)</label>
+      <select id="speed-unit-select">
+        <option value="kn">Knots</option>
+        <option value="kmh">km/h</option>
+        <option value="mph">mph</option>
+      </select>
+      <label>Wind speed</label>
+      <select id="wind-speed-unit-select">
+        <option value="kn">Knots</option>
+        <option value="kmh">km/h</option>
+        <option value="mph">mph</option>
+      </select>
+      <label>Distance (recorded track)</label>
+      <select id="distance-unit-select">
+        <option value="km">Kilometers</option>
+        <option value="nm">Nautical miles</option>
+        <option value="mi">Miles</option>
+      </select>
     </div>
 
     <div class="panel">
