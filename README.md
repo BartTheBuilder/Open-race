@@ -91,6 +91,15 @@ Netlify, Cloudflare Pages). Open that HTTPS URL on your phone, then use the
 browser menu → **"Add to Home Screen"** — it'll behave like an installed app
 (own icon, no browser chrome, works offline via the service worker).
 
+## Local backups
+
+`scripts/backup.sh` writes a full tar.gz snapshot (including `.git` history)
+to `~/backups/race-computer-app/`, rotating so only the 3 most recent are
+kept. Run it manually any time, or run `scripts/install-hooks.sh` once to
+install a git `post-commit` hook that runs it automatically after every
+commit (hooks aren't versioned by git, so this is a one-time local setup step
+per machine).
+
 ## Notes on the sailing math
 
 - Navigation math (tack detection, auto wind, GPX export) always uses GPS

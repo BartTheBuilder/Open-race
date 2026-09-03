@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Installed by scripts/install-hooks.sh into .git/hooks/post-commit (git
+# hooks aren't versioned, so this tracked copy is the source of truth).
+# Runs the rotating backup after every commit to this repo.
+"$(git rev-parse --show-toplevel)/scripts/backup.sh"
