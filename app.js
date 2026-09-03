@@ -175,7 +175,17 @@ function sizeRotatedMap() {
 }
 
 function applyMapRotation() {
-  mapRotateWrapperEl.style.transform = (mapNorthLock || state.heading == null) ? '' : `rotate(${-state.heading}deg)`;
+  const angle = currentMapRotationDeg();
+  mapRotateWrapperEl.style.transform = angle === 0 ? '' : `rotate(${angle}deg)`;
+  // The pin/boat "P"/"CB" labels rotate along with everything else in the
+  // pane (correct for their position, wrong for their text - a label
+  // shouldn't go sideways/upside-down as heading changes), so counter-
+  // rotate each one back to upright.
+  [pinMarker, boatEndMarker].forEach((m) => {
+    const el = m && m.getElement && m.getElement();
+    const circle = el && el.querySelector('.line-end-circle');
+    if (circle) circle.style.transform = angle === 0 ? '' : `rotate(${-angle}deg)`;
+  });
 }
 
 window.addEventListener('resize', () => {
