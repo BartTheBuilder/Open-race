@@ -116,6 +116,19 @@ const speedEl = document.getElementById('speed-value');
 const cogEl = document.getElementById('cog-value');
 const heelEl = document.getElementById('heel-value');
 
+let cogUpdateMs = 0; // 0 = render every fix ("Instant") - display-only, does not affect nav math
+let cogDisplaySamples = [];
+let cogDisplayLastRender = 0;
+
+function renderCog(cog, t) {
+  cogDisplaySamples.push(cog);
+  if (cogUpdateMs > 0 && t - cogDisplayLastRender < cogUpdateMs) return;
+  const avg = circularMeanDeg(cogDisplaySamples);
+  cogEl.textContent = Math.round(avg);
+  cogDisplaySamples = [];
+  cogDisplayLastRender = t;
+}
+
 function onPosition(pos) {
   const { latitude: lat, longitude: lon, speed, heading } = pos.coords;
   const t = pos.timestamp;
@@ -144,7 +157,7 @@ function onPosition(pos) {
   state.lastFix = { lat, lon, t };
 
   speedEl.textContent = speedKn.toFixed(1);
-  cogEl.textContent = Math.round(cog);
+  renderCog(cog, t);
 
   updateBoatMarker(lat, lon);
   updateLineReadout();
@@ -184,13 +197,25 @@ if ('geolocation' in navigator) {
 // the natural way to mount it either way. Zeroable since the mount itself
 // won't be exactly plumb.
 let heelZeroOffset = 0;
+let heelUpdateMs = 0; // 0 = render every sample ("Instant")
+let heelSamples = [];
+let heelLastRender = 0;
 
 function onDeviceMotion(evt) {
   const g = evt.accelerationIncludingGravity;
   if (!g || g.y == null || g.z == null) return;
   const raw = Math.atan2(g.y, g.z) * 180 / Math.PI;
-  heelEl.textContent = Math.round(raw - heelZeroOffset);
   heelEl.dataset.raw = raw;
+  heelSamples.push(raw);
+
+  const now = Date.now();
+  if (heelUpdateMs > 0 && now - heelLastRender < heelUpdateMs) return;
+  // Average whatever samples arrived since the last render rather than just
+  // picking the latest one - a slower rate then reads smoother, not laggier.
+  const avg = heelSamples.reduce((a, b) => a + b, 0) / heelSamples.length;
+  heelEl.textContent = Math.round(avg - heelZeroOffset);
+  heelSamples = [];
+  heelLastRender = now;
 }
 
 if (window.DeviceMotionEvent) {
@@ -212,6 +237,14 @@ if (window.DeviceMotionEvent) {
 document.getElementById('heel-zero').addEventListener('click', () => {
   const raw = parseFloat(heelEl.dataset.raw);
   if (!Number.isNaN(raw)) heelZeroOffset = raw;
+});
+
+document.getElementById('heel-rate').addEventListener('change', (e) => {
+  heelUpdateMs = parseInt(e.target.value, 10) || 0;
+});
+
+document.getElementById('cog-rate').addEventListener('change', (e) => {
+  cogUpdateMs = parseInt(e.target.value, 10) || 0;
 });
 
 /* ---------- wind ---------- */
@@ -609,30 +642,19 @@ startSyncBtn.addEventListener('click', () => {
   else syncTimer();
 });
 
-// Reset needs two presses so a stray tap mid-race can't wipe the countdown -
-// the first press arms it (visibly, with a timeout back to unarmed) and the
-// second within that window actually resets.
-const RESET_ARM_MS = 3000;
+// Reset is hold-to-confirm (same mechanic as the screen-lock unlock button)
+// so a stray tap mid-race can't wipe the countdown.
+const RESET_HOLD_MS = 1200;
 const resetBtn = document.getElementById('timer-reset');
-let resetArmed = false;
-let resetArmTimeout = null;
+const resetFill = resetBtn.querySelector('.fill');
+let resetHoldTimer = null;
 
-function disarmReset() {
-  resetArmed = false;
-  resetBtn.textContent = 'Reset';
-  resetBtn.classList.remove('armed');
-  if (resetArmTimeout) { clearTimeout(resetArmTimeout); resetArmTimeout = null; }
+function resetFillIdle() {
+  resetFill.style.transition = 'none';
+  resetFill.style.width = '0%';
 }
 
-resetBtn.addEventListener('click', () => {
-  if (!resetArmed) {
-    resetArmed = true;
-    resetBtn.textContent = 'Press again to reset';
-    resetBtn.classList.add('armed');
-    resetArmTimeout = setTimeout(disarmReset, RESET_ARM_MS);
-    return;
-  }
-
+function doTimerReset() {
   if (state.timerInterval) clearInterval(state.timerInterval);
   state.timerInterval = null;
   state.timerEndAt = null;
@@ -641,8 +663,25 @@ resetBtn.addEventListener('click', () => {
   timerEl.classList.remove('warn', 'go');
   burnValueEl.textContent = '--';
   startSyncBtn.textContent = 'Start 5:00';
-  disarmReset();
-});
+  resetFillIdle();
+}
+
+function startResetHold(e) {
+  e.preventDefault();
+  resetFill.style.transition = `width ${RESET_HOLD_MS}ms linear`;
+  requestAnimationFrame(() => { resetFill.style.width = '100%'; });
+  resetHoldTimer = setTimeout(doTimerReset, RESET_HOLD_MS);
+}
+
+function cancelResetHold() {
+  if (resetHoldTimer) { clearTimeout(resetHoldTimer); resetHoldTimer = null; }
+  resetFillIdle();
+}
+
+resetBtn.addEventListener('pointerdown', startResetHold);
+resetBtn.addEventListener('pointerup', cancelResetHold);
+resetBtn.addEventListener('pointerleave', cancelResetHold);
+resetBtn.addEventListener('pointercancel', cancelResetHold);
 
 /* ---------- recording ---------- */
 const recordBtn = document.getElementById('record-toggle');

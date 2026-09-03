@@ -139,6 +139,17 @@ label {
 
 .row { display: flex; gap: 8px; }
 
+select {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 1rem;
+  border-radius: 4px;
+  padding: 8px;
+}
+
 input[type="number"] {
   flex: 1;
   background: var(--bg);
@@ -170,8 +181,23 @@ button:active { filter: brightness(0.85); }
 #timer-value.warn { color: var(--amber); }
 #timer-value.go { color: var(--danger); }
 
-.reset-btn { padding: 18px 6px; font-size: 1.05rem; }
-.reset-btn.armed { background: var(--danger); color: #2a0a0a; }
+.reset-btn {
+  padding: 18px 6px;
+  font-size: 1.05rem;
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+}
+.reset-btn .fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  background: var(--danger);
+  opacity: 0.4;
+}
+.reset-btn .label { position: relative; }
 
 #record-toggle.recording { background: var(--danger); color: #2a0a0a; }
 
