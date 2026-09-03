@@ -26,8 +26,10 @@ Three pages, like a real chartplotter/MFD, switched with the bottom tab bar:
   compass needed. Below that, **auto wind from tacking** keeps redoing this
   continuously from a rolling window of your recent heading history (default
   4 min, adjustable) so wind keeps correcting itself as conditions change,
-  without needing to stop and recalibrate. Also the list of recorded sessions
-  with per-session **GPX export** and delete.
+  without needing to stop and recalibrate. Also a **color theme** picker
+  (Default, Monochrome, Vintage Amber - the map track/line colors switch with
+  it too) and the list of recorded sessions with per-session **GPX export**
+  and delete.
 
 Other notes:
 - **Header/lifter alerts**: when auto-wind detects the true wind has moved,

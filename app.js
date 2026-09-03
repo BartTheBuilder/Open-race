@@ -1,5 +1,32 @@
 "use strict";
 
+/* ---------- color theme ----------
+   Applied as the very first thing the script does (before anything renders
+   or reads settings) so there's no flash of the wrong theme on load. The
+   theme lives in the same rc_settings blob as everything else - see
+   saveSettings()/loadSettings() - this early read just short-circuits
+   straight to localStorage since loadSettings() itself runs much later. */
+const VALID_THEMES = ['default', 'mono', 'amber'];
+const THEME_MAP_COLORS = {
+  // Leaflet draws the track/boat marker with an actual color, not CSS - keep
+  // these roughly matching each theme's --accent/--amber so the map doesn't
+  // stay teal/amber while the rest of the UI goes monochrome.
+  default: { track: '#39ffb0', line: '#ffb020' },
+  mono: { track: '#e0e0e0', line: '#b5b5b5' },
+  amber: { track: '#ffb020', line: '#ffe08a' },
+};
+let currentTheme = 'default';
+(function initThemeEarly() {
+  try {
+    const raw = localStorage.getItem('rc_settings');
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (VALID_THEMES.includes(s.theme)) currentTheme = s.theme;
+    }
+  } catch (e) { /* storage unavailable, fall back to default */ }
+  document.documentElement.setAttribute('data-theme', currentTheme);
+})();
+
 /* ---------- constants ---------- */
 const MS_TO_KNOTS = 1.943844;
 const EARTH_R = 6371000; // meters
@@ -89,12 +116,13 @@ let boatMarker = null;
 let pinMarker = null;
 let boatEndMarker = null;
 let lineLayer = null;
-let trackLayer = L.polyline([], { color: '#39ffb0', weight: 3 }).addTo(map);
+let trackLayer = L.polyline([], { color: THEME_MAP_COLORS[currentTheme].track, weight: 3 }).addTo(map);
 let firstFix = true;
 
 function updateBoatMarker(lat, lon) {
   if (!boatMarker) {
-    boatMarker = L.circleMarker([lat, lon], { radius: 7, color: '#39ffb0', fillColor: '#39ffb0', fillOpacity: 1 }).addTo(map);
+    const c = THEME_MAP_COLORS[currentTheme].track;
+    boatMarker = L.circleMarker([lat, lon], { radius: 7, color: c, fillColor: c, fillOpacity: 1 }).addTo(map);
   } else {
     boatMarker.setLatLng([lat, lon]);
   }
@@ -108,7 +136,7 @@ function updateBoatMarker(lat, lon) {
 // pulls PNGs from unpkg, which breaks offline (exactly when this matters
 // most, mid-race with no signal) and doesn't give a precise center point the
 // way a plain circle does.
-const LINE_COLOR = '#ffb020';
+let LINE_COLOR = THEME_MAP_COLORS[currentTheme].line;
 function lineEndIcon(label) {
   return L.divIcon({
     className: 'line-end-icon',
@@ -981,6 +1009,30 @@ function renderSessionsList() {
 
 renderSessionsList();
 
+/* ---------- theme switching (UI + map colors) ---------- */
+const themeSelect = document.getElementById('theme-select');
+themeSelect.value = currentTheme; // sync the already-applied (early-init) choice into the control
+
+function updateMapTheme() {
+  const colors = THEME_MAP_COLORS[currentTheme] || THEME_MAP_COLORS.default;
+  LINE_COLOR = colors.line;
+  trackLayer.setStyle({ color: colors.track });
+  if (boatMarker) boatMarker.setStyle({ color: colors.track, fillColor: colors.track });
+  redrawLine(); // re-draw pin/boat line, if any, in the new color
+}
+
+function setTheme(theme) {
+  currentTheme = VALID_THEMES.includes(theme) ? theme : 'default';
+  document.documentElement.setAttribute('data-theme', currentTheme);
+  themeSelect.value = currentTheme;
+  updateMapTheme();
+}
+
+themeSelect.addEventListener('change', () => {
+  setTheme(themeSelect.value);
+  saveSettings();
+});
+
 /* ---------- settings persistence ---------- */
 // Everything the user configures (as opposed to live/derived values like the
 // continuously-drifting auto-wind direction) survives a reload - a setting
@@ -1002,6 +1054,7 @@ function saveSettings() {
       heelUpdateMs,
       heelZeroOffset,
       calibDurationS: parseInt(document.getElementById('calib-duration').value, 10) || 45,
+      theme: currentTheme,
     }));
   } catch (e) { /* storage unavailable, ignore */ }
 }
@@ -1036,6 +1089,11 @@ function loadSettings() {
   }
   if (typeof s.heelZeroOffset === 'number') heelZeroOffset = s.heelZeroOffset;
   if (typeof s.calibDurationS === 'number') document.getElementById('calib-duration').value = s.calibDurationS;
+  // Theme was already applied at script start (initThemeEarly) to avoid a
+  // flash of the wrong theme; this just syncs the map colors/select now that
+  // the map and control actually exist, and re-applies in case initThemeEarly
+  // couldn't read localStorage for some reason.
+  if (VALID_THEMES.includes(s.theme)) setTheme(s.theme);
 
   updateWindStatus();
 }

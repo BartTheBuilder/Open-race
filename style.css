@@ -8,6 +8,39 @@
   --danger: #ff5f5f;
   --text: #e8e8e8;
   --muted: #6b6b6b;
+  --btn-ink: #04231e;    /* text color for a solid --accent button */
+  --danger-ink: #2a0a0a; /* text color for a solid --danger button (recording state) */
+}
+
+/* ---------- color theme presets ----------
+   Same token names throughout, so every existing var(--...) rule below picks
+   these up automatically - no other selector needs to change per theme. */
+[data-theme="mono"] {
+  --bg: #000000;
+  --panel: #0a0a0a;
+  --tile: #0a0a0a;
+  --border: #3a3a3a;
+  --accent: #e8e8e8;
+  --amber: #ffffff;
+  --danger: #ffffff;
+  --text: #f0f0f0;
+  --muted: #8a8a8a; /* kept lighter than default's --muted - mono loses all color cues, so brightness has to carry more of the hierarchy */
+  --btn-ink: #050505;
+  --danger-ink: #050505;
+}
+
+[data-theme="amber"] {
+  --bg: #000000;
+  --panel: #0b0805;
+  --tile: #0b0805;
+  --border: #4a3510;
+  --accent: #ffb020;
+  --amber: #ffe08a;
+  --danger: #ff6a00;
+  --text: #ffd28a;
+  --muted: #8f6a2c;
+  --btn-ink: #241500;
+  --danger-ink: #1a0a00;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -112,6 +145,13 @@ html, body {
 }
 .shift-banner.lift { background: #071a12; color: var(--accent); border: 1px solid var(--accent); }
 .shift-banner.header { background: #200808; color: var(--danger); border: 1px solid var(--danger); }
+/* Non-color themes: the LIFT/HEADER text already carries the meaning (see
+   JS), but a dashed border on HEADER gives a second, shape-based cue since
+   lift/header would otherwise render as near-identical grey/amber boxes. */
+[data-theme="mono"] .shift-banner.lift { background: #1a1a1a; }
+[data-theme="mono"] .shift-banner.header { background: #1a1a1a; border-style: dashed; }
+[data-theme="amber"] .shift-banner.lift { background: #241a04; }
+[data-theme="amber"] .shift-banner.header { background: #241004; border-style: dashed; }
 
 .sub-readout {
   text-align: center;
@@ -165,7 +205,7 @@ input[type="number"] {
 button {
   flex: 1;
   background: var(--accent);
-  color: #04231e;
+  color: var(--btn-ink);
   border: none;
   border-radius: 4px;
   padding: 12px 6px;
@@ -180,6 +220,16 @@ button:active { filter: brightness(0.85); }
 
 #timer-value.warn { color: var(--amber); }
 #timer-value.go { color: var(--danger); }
+/* Mono gives warn/go the same --amber/--danger (both white - nothing else
+   to reach for without color), so .go gets reverse video on top of that:
+   still louder than .warn, preserving the warn < go escalation. warn/go
+   never apply together, so sharing white between the two tokens is safe. */
+[data-theme="mono"] #timer-value.go { color: var(--bg); background: var(--danger); }
+/* Amber's own --amber (#ffe08a) is barely different from normal --text
+   (#ffd28a), and --danger (#ff6a00) reads darker/duller than both - same
+   escalation-inversion problem as mono, fixed the same way. */
+[data-theme="amber"] #timer-value.warn { color: #ffffff; }
+[data-theme="amber"] #timer-value.go { color: var(--bg); background: var(--danger); }
 
 .hold-btn { position: relative; overflow: hidden; touch-action: none; }
 .hold-btn .fill {
@@ -195,9 +245,12 @@ button:active { filter: brightness(0.85); }
 
 .reset-btn { padding: 18px 6px; font-size: 1.05rem; }
 
-#record-toggle.recording { background: var(--danger); color: #2a0a0a; }
+#record-toggle.recording { background: var(--danger); color: var(--danger-ink); }
 
 #map { flex: 1; min-height: 220px; border-radius: 4px; overflow: hidden; filter: grayscale(0.3) brightness(0.9); }
+/* Monochrome should mean monochrome - strip the OSM tiles' blue water /
+   green land too, not just the app's own UI colors. */
+[data-theme="mono"] #map { filter: grayscale(1) brightness(0.75) contrast(1.1); }
 
 .line-end-icon { background: transparent; border: none; }
 .line-end-circle {
