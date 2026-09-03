@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Installed by scripts/install-hooks.sh into .git/hooks/pre-commit (git hooks
+# aren't versioned, so this tracked copy is the source of truth). Blocks a
+# commit if scripts/check.sh fails.
+"$(git rev-parse --show-toplevel)/scripts/check.sh"

@@ -17,15 +17,21 @@ Three pages, like a real chartplotter/MFD, switched with the bottom tab bar:
   generic speed*cos(angle) number isn't actually useful without a polar to
   compare it against. Tiles are rearrangeable: tap **Edit** to drag them
   around a 4-column grid and resize via a corner handle (each tile has its
-  own minimum size, e.g. the timer can't shrink below 4x4) — the layout is
-  saved and restored automatically, with a reset to the default arrangement
-  if nothing's been customized yet.
+  own minimum size, e.g. the timer can't shrink below 4x4); dragging one tile
+  more than 40% onto another same-size tile swaps them instead of just
+  rejecting the drop. Which tiles show at all is controlled from Settings
+  ("Instrument tiles"). The layout is saved and restored automatically, with
+  a per-tile fallback to its default position if nothing's been customized
+  yet.
 - **Route** — the chart/map, pin-end and boat-end line pings, and session
   recording (start/stop). Both line-end markers are draggable, so a GPS ping
   can be nudged to the actual position afterward. The map rotates heading-up
   by default, like a chartplotter (a "Lock map to North" setting turns this
   off), rotating off a smoothed heading rather than raw GPS course so it
-  doesn't swing with normal low-speed COG jitter.
+  doesn't swing with normal low-speed COG jitter. Map panning and marker
+  dragging stay correct at any rotation - both are custom pointer-driven
+  (not Leaflet's native dragging), since a raw screen drag has to be rotated
+  into the map's own coordinate space once it isn't sitting north-up.
 - **Settings** — wind direction, either typed in manually, fetched as a
   regional forecast estimate (Open-Meteo, free, no key), or measured directly
   by **sailing both tacks**: hold steady close-hauled on starboard, tack, hold
@@ -41,7 +47,11 @@ Three pages, like a real chartplotter/MFD, switched with the bottom tab bar:
   tack/wind detection and GPX export regardless. Speed, wind speed, and
   distance each have their own unit picker (knots/km/h/mph, km/nautical
   miles/miles) so e.g. knots + kilometers is fine if that's what you want.
-  Also a **color theme** picker (Default, Monochrome, Vintage Amber - the map
+  COG/HEEL display update rate is adjustable down to 0.25s. GPS
+  auto-retries on a configurable interval if it errors out (permission
+  denials are the one exception - those need you, not a retry, so the app
+  says so instead of looping). Also a **color theme** picker (Default,
+  Monochrome, Vintage Amber, Night Vision Red, Ocean Blue, Daylight - the map
   track/line colors switch with it too) and the list of recorded sessions,
   each renameable (pencil icon) with per-session **View** (shows the track on
   the Route map), **GPX export**, and delete.
@@ -99,6 +109,18 @@ kept. Run it manually any time, or run `scripts/install-hooks.sh` once to
 install a git `post-commit` hook that runs it automatically after every
 commit (hooks aren't versioned by git, so this is a one-time local setup step
 per machine).
+
+## Development checks
+
+There's no build/test toolchain (this is deliberately a no-dependency static
+app), but `scripts/check.sh` catches the mistakes that actually came up while
+building it by hand: leftover merge-conflict markers, an id referenced in
+`app.js` with no matching element in `index.html` (or vice versa), and
+load-time JS errors (typos, undefined references) via a real parse+execute of
+`app.js` under `gjs` against a small DOM/Leaflet stub
+(`scripts/dom-stub.js`) - not a full browser, so it can't catch visual or
+interaction bugs, only "does the script even run." `scripts/install-hooks.sh`
+also wires this in as a `pre-commit` hook that blocks a commit if it fails.
 
 ## Notes on the sailing math
 

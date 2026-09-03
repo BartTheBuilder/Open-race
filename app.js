@@ -191,6 +191,74 @@ document.getElementById('map-north-lock').addEventListener('change', (e) => {
   saveSettings();
 });
 
+/* ---------- rotation-aware dragging (map pan + line-end markers) ---------- */
+// Leaflet's built-in dragging (map panning, marker dragging) computes screen
+// deltas assuming an unrotated container - but the heading-up rotation above
+// is applied via CSS to a wrapper around Leaflet's own pane, which Leaflet
+// has no knowledge of. A raw screen-space drag delta has to be rotated into
+// the pane's own (unrotated) coordinate space before it means anything to
+// Leaflet, or dragging visually goes the wrong direction the moment the map
+// isn't north-up. Rather than only patching the rotated case, native
+// dragging (map panning, and line-end marker dragging further below) is
+// replaced entirely with one shared pointer-based implementation - a single
+// code path, where the rotation angle is just 0 when unrotated/north-locked.
+function rotateVector(dx, dy, angleDeg) {
+  const rad = angleDeg * Math.PI / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  return { x: dx * cos - dy * sin, y: dx * sin + dy * cos };
+}
+
+// The angle actually applied to mapRotateWrapperEl right now (see
+// applyMapRotation) - a screen-space delta needs the INVERSE of this to
+// land correctly in the pane's own coordinate space.
+function currentMapRotationDeg() {
+  return (mapNorthLock || state.heading == null) ? 0 : -state.heading;
+}
+
+map.dragging.disable();
+
+let mapActivePointers = 0;
+let mapPanState = null; // {x, y, pointerId}
+
+function onMapPointerDown(ev) {
+  mapActivePointers++;
+  if (mapActivePointers > 1) {
+    // A second finger means the user is pinch-zooming, not panning - abort
+    // any in-flight pan and let Leaflet's own touch-zoom handler (still
+    // enabled; only .dragging is disabled) take the gesture from here.
+    if (mapPanState) {
+      mapViewportEl.releasePointerCapture(mapPanState.pointerId);
+      mapPanState = null;
+    }
+    return;
+  }
+  if (!ev.isPrimary) return;
+  mapPanState = { x: ev.clientX, y: ev.clientY, pointerId: ev.pointerId };
+  mapViewportEl.setPointerCapture(ev.pointerId);
+}
+
+function onMapPointerMove(ev) {
+  if (!mapPanState || ev.pointerId !== mapPanState.pointerId) return;
+  const dx = ev.clientX - mapPanState.x;
+  const dy = ev.clientY - mapPanState.y;
+  mapPanState.x = ev.clientX;
+  mapPanState.y = ev.clientY;
+  const rotated = rotateVector(dx, dy, -currentMapRotationDeg());
+  // panBy(offset) moves the pane by -offset (panning the "view" right shifts
+  // content left) - negate so the content actually follows the finger.
+  map.panBy([-rotated.x, -rotated.y], { animate: false });
+}
+
+function onMapPointerEnd(ev) {
+  mapActivePointers = Math.max(0, mapActivePointers - 1);
+  if (mapPanState && ev.pointerId === mapPanState.pointerId) mapPanState = null;
+}
+
+mapViewportEl.addEventListener('pointerdown', onMapPointerDown);
+mapViewportEl.addEventListener('pointermove', onMapPointerMove);
+mapViewportEl.addEventListener('pointerup', onMapPointerEnd);
+mapViewportEl.addEventListener('pointercancel', onMapPointerEnd);
+
 let boatMarker = null;
 let pinMarker = null;
 let boatEndMarker = null;
@@ -353,6 +421,13 @@ function startGpsWatch() {
 }
 
 function onPositionError(err) {
+  if (err.code === err.PERMISSION_DENIED) {
+    // Retrying won't help - only the user re-granting permission will, and
+    // repeatedly re-requesting a denied permission is exactly the kind of
+    // thing that gets a site flagged as abusive by the browser.
+    gpsStatusEl.textContent = 'location permission denied - enable it in browser settings';
+    return;
+  }
   gpsStatusEl.textContent = `error: ${err.message} - retrying in ${gpsRetryS}s`;
   if (gpsRetryTimer) clearTimeout(gpsRetryTimer);
   gpsRetryTimer = setTimeout(startGpsWatch, gpsRetryS * 1000);
@@ -709,21 +784,53 @@ const burnValueEl = document.getElementById('burn-value');
 
 // Line-end markers are draggable so a GPS ping can be nudged to the actual
 // pin/boat position afterward (GPS accuracy at the moment of pinging isn't
-// always exact).
+// always exact). Custom pointer-based drag rather than Leaflet's native
+// `draggable: true` - for the same reason map panning is custom above: a
+// raw screen delta needs rotating into the pane's own coordinate space
+// before it means anything, once the map is rotated off north-up.
 function wireLineEndDrag(marker, applyPosition) {
-  marker.on('dragend', () => {
+  const el = marker.getElement();
+  if (!el) return;
+  el.style.cursor = 'grab';
+  let dragState = null; // {x, y, pointerId}
+
+  el.addEventListener('pointerdown', (ev) => {
+    if (!ev.isPrimary) return;
+    ev.stopPropagation(); // don't also start a map pan on the same touch
+    dragState = { x: ev.clientX, y: ev.clientY, pointerId: ev.pointerId };
+    el.setPointerCapture(ev.pointerId);
+    el.style.cursor = 'grabbing';
+  });
+
+  el.addEventListener('pointermove', (ev) => {
+    if (!dragState || ev.pointerId !== dragState.pointerId) return;
+    const dx = ev.clientX - dragState.x;
+    const dy = ev.clientY - dragState.y;
+    dragState.x = ev.clientX;
+    dragState.y = ev.clientY;
+    const rotated = rotateVector(dx, dy, -currentMapRotationDeg());
+    const layerPoint = map.latLngToLayerPoint(marker.getLatLng()).add(L.point(rotated.x, rotated.y));
+    marker.setLatLng(map.layerPointToLatLng(layerPoint));
+  });
+
+  function endDrag(ev) {
+    if (!dragState || ev.pointerId !== dragState.pointerId) return;
+    dragState = null;
+    el.style.cursor = 'grab';
     const { lat, lng } = marker.getLatLng();
     applyPosition({ lat, lon: lng });
     redrawLine();
     updateLineReadout();
-  });
+  }
+  el.addEventListener('pointerup', endDrag);
+  el.addEventListener('pointercancel', endDrag);
 }
 
 document.getElementById('ping-pin').addEventListener('click', () => {
   if (!state.lastFix) return;
   state.pin = { lat: state.lastFix.lat, lon: state.lastFix.lon };
   if (pinMarker) map.removeLayer(pinMarker);
-  pinMarker = L.marker([state.pin.lat, state.pin.lon], { icon: lineEndIcon('P'), title: 'Pin', draggable: true }).addTo(map);
+  pinMarker = L.marker([state.pin.lat, state.pin.lon], { icon: lineEndIcon('P'), title: 'Pin' }).addTo(map);
   wireLineEndDrag(pinMarker, (p) => { state.pin = p; });
   redrawLine();
   updateLineReadout();
@@ -733,7 +840,7 @@ document.getElementById('ping-boat').addEventListener('click', () => {
   if (!state.lastFix) return;
   state.boat = { lat: state.lastFix.lat, lon: state.lastFix.lon };
   if (boatEndMarker) map.removeLayer(boatEndMarker);
-  boatEndMarker = L.marker([state.boat.lat, state.boat.lon], { icon: lineEndIcon('CB'), title: 'Committee Boat', draggable: true }).addTo(map);
+  boatEndMarker = L.marker([state.boat.lat, state.boat.lon], { icon: lineEndIcon('CB'), title: 'Committee Boat' }).addTo(map);
   wireLineEndDrag(boatEndMarker, (p) => { state.boat = p; });
   redrawLine();
   updateLineReadout();
@@ -1156,14 +1263,16 @@ const BLOCK_MIN = {
   line: { w: 4, h: 2 },
 };
 
+const BLOCK_LABELS = { sog: 'SOG', cog: 'COG', heel: 'HEEL', timer: 'START TIMER', line: 'LINE' };
+
 // Recreates today's fixed arrangement: SOG wide, COG+HEEL side by side,
 // START TIMER wide, LINE wide.
 const DEFAULT_LAYOUT = [
-  { id: 'sog', x: 0, y: 0, w: 4, h: 2 },
-  { id: 'cog', x: 0, y: 2, w: 2, h: 2 },
-  { id: 'heel', x: 2, y: 2, w: 2, h: 2 },
-  { id: 'timer', x: 0, y: 4, w: 4, h: 4 },
-  { id: 'line', x: 0, y: 8, w: 4, h: 2 },
+  { id: 'sog', x: 0, y: 0, w: 4, h: 2, hidden: false },
+  { id: 'cog', x: 0, y: 2, w: 2, h: 2, hidden: false },
+  { id: 'heel', x: 2, y: 2, w: 2, h: 2, hidden: false },
+  { id: 'timer', x: 0, y: 4, w: 4, h: 4, hidden: false },
+  { id: 'line', x: 0, y: 8, w: 4, h: 2, hidden: false },
 ];
 
 const LAYOUT_KEY = 'rc_layout';
@@ -1180,13 +1289,38 @@ function rectsOverlap(a, b) {
 }
 
 // Would `candidate` (a block's proposed new x/y/w/h) fit on the grid without
-// overlapping any other block? No reflow/compaction - a blocked drop is
-// simply rejected and the caller snaps the block back.
+// overlapping any other visible block? No reflow/compaction - a blocked drop
+// is simply rejected and the caller snaps the block back (except the narrow
+// same-size swap case handled separately in startBlockMove). Hidden blocks
+// are excluded entirely - their cells are free for anything else, otherwise
+// hiding a tile would leave an invisible collision nobody can see or debug.
 function fits(candidate, excludeId) {
   if (candidate.x < 0 || candidate.y < 0) return false;
   if (candidate.x + candidate.w > LAYOUT_COLS) return false;
   if (candidate.y + candidate.h > LAYOUT_MAX_ROWS) return false;
-  return !layout.some((b) => b.id !== excludeId && rectsOverlap(candidate, b));
+  return !layout.some((b) => b.id !== excludeId && !b.hidden && rectsOverlap(candidate, b));
+}
+
+// Cell-area of the overlap between two {x,y,w,h} rects (0 if they don't touch).
+function overlapArea(a, b) {
+  const w = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+  const h = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+  return w * h;
+}
+
+// "Hover over more than 40% of one tile and it moves out of the way": a
+// narrow, deterministic special case, not a general reflow solver. Only
+// swaps when the drop overlaps exactly one other same-size visible block by
+// at least 40% of that block's area - anything else (different sizes,
+// multiple tiles overlapped, out of bounds) falls through to reject-and-
+// revert, same as any other blocked drop.
+function findSwapTarget(candidate, excludeId) {
+  const overlapped = layout.filter((b) => b.id !== excludeId && !b.hidden && rectsOverlap(candidate, b));
+  if (overlapped.length !== 1) return null;
+  const target = overlapped[0];
+  if (target.w !== candidate.w || target.h !== candidate.h) return null;
+  if (overlapArea(candidate, target) / (target.w * target.h) < 0.4) return null;
+  return target;
 }
 
 // Bigger blocks get bigger readouts, smaller blocks get smaller ones: scale
@@ -1204,6 +1338,8 @@ function applyLayout() {
   layout.forEach((b) => {
     const el = instrGrid.querySelector(`.tile[data-block="${b.id}"]`);
     if (!el) return;
+    el.style.display = b.hidden ? 'none' : '';
+    if (b.hidden) return;
     el.style.gridColumn = `${b.x + 1} / span ${b.w}`;
     el.style.gridRow = `${b.y + 1} / span ${b.h}`;
     el.style.setProperty('--tile-scale', scaleFor(b).toFixed(2));
@@ -1219,26 +1355,55 @@ function loadLayout() {
     const raw = localStorage.getItem(LAYOUT_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      // Only trust the stored layout if it covers every block id we know
-      // about today - otherwise (older/newer app version, corrupt data)
-      // fall back to the default rather than rendering a partial layout.
-      if (Array.isArray(parsed) && DEFAULT_LAYOUT.every((d) => parsed.some((p) => p && p.id === d.id))) {
+      if (Array.isArray(parsed)) {
+        // Merge per-block rather than all-or-nothing: a block id missing
+        // from the stored layout (an older save from before it existed, or
+        // corrupt data for just that entry) falls back to its own default
+        // instead of discarding every other block's saved position too.
         layout = DEFAULT_LAYOUT.map((d) => {
-          const stored = parsed.find((p) => p.id === d.id);
+          const stored = parsed.find((p) => p && p.id === d.id);
+          if (!stored) return { ...d };
           const min = BLOCK_MIN[d.id];
-          const w = clamp(Math.round(stored.w), min.w, LAYOUT_COLS);
-          const h = clamp(Math.round(stored.h), min.h, MAX_BLOCK_H);
+          const w = clamp(Math.round(stored.w) || d.w, min.w, LAYOUT_COLS);
+          const h = clamp(Math.round(stored.h) || d.h, min.h, MAX_BLOCK_H);
           return {
             id: d.id,
-            x: clamp(Math.round(stored.x), 0, LAYOUT_COLS - w),
-            y: clamp(Math.round(stored.y), 0, LAYOUT_MAX_ROWS - h),
+            x: clamp(Math.round(stored.x) || 0, 0, LAYOUT_COLS - w),
+            y: clamp(Math.round(stored.y) || 0, 0, LAYOUT_MAX_ROWS - h),
             w, h,
+            hidden: !!stored.hidden,
           };
         });
       }
     }
   } catch (e) { /* corrupt storage, keep default */ }
   applyLayout();
+  renderTileVisibilityList();
+}
+
+function renderTileVisibilityList() {
+  const listEl = document.getElementById('tile-visibility-list');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  layout.forEach((b) => {
+    const row = document.createElement('label');
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.margin = '0';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.style.width = 'auto';
+    cb.style.marginRight = '8px';
+    cb.checked = !b.hidden;
+    cb.addEventListener('change', () => {
+      b.hidden = !cb.checked;
+      applyLayout();
+      saveLayout();
+    });
+    row.appendChild(cb);
+    row.appendChild(document.createTextNode(BLOCK_LABELS[b.id] || b.id));
+    listEl.appendChild(row);
+  });
 }
 
 layoutEditToggle.addEventListener('click', () => {
@@ -1297,14 +1462,29 @@ function startBlockMove(tile, block, downEvent) {
       w: block.w, h: block.h,
     };
     const moved = candidate.x !== orig.x || candidate.y !== orig.y;
-    if (moved && fits(candidate, block.id)) {
+    if (!moved) return;
+
+    if (fits(candidate, block.id)) {
       block.x = candidate.x;
       block.y = candidate.y;
       applyLayout();
       saveLayout();
-    } else if (moved) {
-      flashReject(tile); // blocked by another tile or the grid edge - snap back (no auto-reflow)
+      return;
     }
+
+    const swapTarget = findSwapTarget(candidate, block.id);
+    if (swapTarget) {
+      const swapOrig = { x: swapTarget.x, y: swapTarget.y };
+      swapTarget.x = orig.x;
+      swapTarget.y = orig.y;
+      block.x = swapOrig.x;
+      block.y = swapOrig.y;
+      applyLayout();
+      saveLayout();
+      return;
+    }
+
+    flashReject(tile); // blocked by another tile or the grid edge - snap back (no auto-reflow)
   }
 
   tile.addEventListener('pointermove', onMove);
