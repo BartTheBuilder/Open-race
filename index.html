@@ -94,6 +94,16 @@
     <header class="page-header">SETTINGS</header>
 
     <div class="panel">
+      <label>GPS retry interval (seconds)</label>
+      <div class="tile-sub">If GPS errors out (lost signal, permission issue), the app automatically retries after this delay rather than needing a page reload.</div>
+      <div class="row">
+        <button class="nudge" data-gps-retry-nudge="-5">-5</button>
+        <input id="gps-retry-input" type="number" min="5" max="60" value="10">
+        <button class="nudge" data-gps-retry-nudge="5">+5</button>
+      </div>
+    </div>
+
+    <div class="panel">
       <label>Wind direction (from, °true)</label>
       <div class="row">
         <button class="nudge" data-nudge="-5">-5</button>
@@ -174,6 +184,9 @@
         <option value="default">Default</option>
         <option value="mono">Monochrome</option>
         <option value="amber">Vintage Amber</option>
+        <option value="red">Night Vision Red</option>
+        <option value="ocean">Ocean Blue</option>
+        <option value="daylight">Daylight (high contrast)</option>
       </select>
     </div>
 
@@ -183,6 +196,7 @@
       <label>COG</label>
       <select id="cog-rate">
         <option value="0">Instant</option>
+        <option value="250">0.25s</option>
         <option value="500">0.5s</option>
         <option value="750">0.75s</option>
         <option value="1000">1s</option>
@@ -190,6 +204,7 @@
       <label>Heel</label>
       <select id="heel-rate">
         <option value="0">Instant</option>
+        <option value="250">0.25s</option>
         <option value="500">0.5s</option>
         <option value="750">0.75s</option>
         <option value="1000">1s</option>

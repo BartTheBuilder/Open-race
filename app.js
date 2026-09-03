@@ -6,7 +6,7 @@
    theme lives in the same rc_settings blob as everything else - see
    saveSettings()/loadSettings() - this early read just short-circuits
    straight to localStorage since loadSettings() itself runs much later. */
-const VALID_THEMES = ['default', 'mono', 'amber'];
+const VALID_THEMES = ['default', 'mono', 'amber', 'red', 'ocean', 'daylight'];
 const THEME_MAP_COLORS = {
   // Leaflet draws the track/boat marker with an actual color, not CSS - keep
   // these roughly matching each theme's --accent/--amber so the map doesn't
@@ -14,6 +14,9 @@ const THEME_MAP_COLORS = {
   default: { track: '#39ffb0', line: '#ffb020' },
   mono: { track: '#e0e0e0', line: '#b5b5b5' },
   amber: { track: '#ffb020', line: '#ffe08a' },
+  red: { track: '#ff3b3b', line: '#ff8080' },
+  ocean: { track: '#4fd6ff', line: '#ffd24f' },
+  daylight: { track: '#0a7a5a', line: '#b36b00' },
 };
 let currentTheme = 'default';
 (function initThemeEarly() {
@@ -284,6 +287,7 @@ function updateFusedHeading(cog, speedKn) {
 }
 
 function onPosition(pos) {
+  if (gpsRetryTimer) { clearTimeout(gpsRetryTimer); gpsRetryTimer = null; }
   const { latitude: lat, longitude: lon, speed, heading } = pos.coords;
   const t = pos.timestamp;
   gpsStatusEl.textContent = 'locked (±' + Math.round(pos.coords.accuracy) + 'm)';
@@ -330,19 +334,45 @@ function onPosition(pos) {
   }
 }
 
-function onPositionError(err) {
-  gpsStatusEl.textContent = 'error: ' + err.message;
-}
+// watchPosition doesn't reliably keep retrying on its own once it errors out
+// on some browsers/devices - explicitly tear down and restart the watch
+// after a configurable delay so a lost GPS fix recovers on its own instead
+// of needing the page reloaded mid-race.
+let gpsWatchId = null;
+let gpsRetryTimer = null;
+let gpsRetryS = 10;
 
-if ('geolocation' in navigator) {
-  navigator.geolocation.watchPosition(onPosition, onPositionError, {
+function startGpsWatch() {
+  if (!('geolocation' in navigator)) { gpsStatusEl.textContent = 'not supported'; return; }
+  if (gpsWatchId != null) navigator.geolocation.clearWatch(gpsWatchId);
+  gpsWatchId = navigator.geolocation.watchPosition(onPosition, onPositionError, {
     enableHighAccuracy: true,
     maximumAge: 1000,
     timeout: 15000,
   });
-} else {
-  gpsStatusEl.textContent = 'not supported';
 }
+
+function onPositionError(err) {
+  gpsStatusEl.textContent = `error: ${err.message} - retrying in ${gpsRetryS}s`;
+  if (gpsRetryTimer) clearTimeout(gpsRetryTimer);
+  gpsRetryTimer = setTimeout(startGpsWatch, gpsRetryS * 1000);
+}
+
+startGpsWatch();
+
+document.getElementById('gps-retry-input').addEventListener('change', (e) => {
+  gpsRetryS = Math.min(60, Math.max(5, parseInt(e.target.value, 10) || 10));
+  e.target.value = gpsRetryS;
+  saveSettings();
+});
+document.querySelectorAll('[data-gps-retry-nudge]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const input = document.getElementById('gps-retry-input');
+    gpsRetryS = Math.min(60, Math.max(5, gpsRetryS + parseInt(btn.dataset.gpsRetryNudge, 10)));
+    input.value = gpsRetryS;
+    saveSettings();
+  });
+});
 
 /* ---------- heel (from the phone's accelerometer) ---------- */
 // Derived from the raw gravity vector (devicemotion) rather than the
@@ -1608,6 +1638,7 @@ function saveSettings() {
       heelUpdateMs,
       heelZeroOffset,
       calibDurationS: parseInt(document.getElementById('calib-duration').value, 10) || 45,
+      gpsRetryS,
       theme: currentTheme,
       compassFusionEnabled,
       mapNorthLock,
@@ -1648,6 +1679,10 @@ function loadSettings() {
   }
   if (typeof s.heelZeroOffset === 'number') heelZeroOffset = s.heelZeroOffset;
   if (typeof s.calibDurationS === 'number') document.getElementById('calib-duration').value = s.calibDurationS;
+  if (typeof s.gpsRetryS === 'number') {
+    gpsRetryS = Math.min(60, Math.max(5, s.gpsRetryS));
+    document.getElementById('gps-retry-input').value = gpsRetryS;
+  }
   // Theme was already applied at script start (initThemeEarly) to avoid a
   // flash of the wrong theme; this just syncs the map colors/select now that
   // the map and control actually exist, and re-applies in case initThemeEarly

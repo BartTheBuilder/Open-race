@@ -1,4 +1,4 @@
-const CACHE = 'race-computer-v4';
+const CACHE = 'race-computer-v5';
 const ASSETS = ['./', './index.html', './style.css', './app.js', './manifest.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-512-maskable.png'];
 

@@ -10,6 +10,7 @@
   --muted: #6b6b6b;
   --btn-ink: #04231e;    /* text color for a solid --accent button */
   --danger-ink: #2a0a0a; /* text color for a solid --danger button (recording state) */
+  --secondary-bg: #1a1a1a; /* background for secondary buttons and the lock chrome */
   --cell-h: 56px;   /* one instruments-grid row; JS reads this to match its drag/snap math */
   --grid-gap: 10px;
 }
@@ -43,6 +44,55 @@
   --muted: #8f6a2c;
   --btn-ink: #241500;
   --danger-ink: #1a0a00;
+}
+
+/* Classic nautical "red at night" mode - preserves night vision on deck.
+   Single-hue like mono, so warn/go and lift/header need the same
+   escalation-safe overrides further down. */
+[data-theme="red"] {
+  --bg: #000000;
+  --panel: #0a0000;
+  --tile: #0a0000;
+  --border: #3a0a0a;
+  --accent: #ff3b3b;
+  --amber: #ff8080;
+  --danger: #ff0000;
+  --text: #ffb3b3;
+  --muted: #8a3a3a;
+  --btn-ink: #1a0000;
+  --danger-ink: #1a0000;
+}
+
+[data-theme="ocean"] {
+  --bg: #000000;
+  --panel: #05080d;
+  --tile: #05080d;
+  --border: #1a3550;
+  --accent: #4fd6ff;
+  --amber: #ffd24f;
+  --danger: #ff5f5f;
+  --text: #cfe8ff;
+  --muted: #5a7a95;
+  --btn-ink: #001a22;
+  --danger-ink: #2a0a0a;
+}
+
+/* Bright, light-background palette for high-glare daylight readability -
+   the opposite tradeoff from every other theme here, which assume a dim
+   cockpit/night use case. */
+[data-theme="daylight"] {
+  --bg: #f5f5f0;
+  --panel: #e8e8e0;
+  --tile: #ffffff;
+  --border: #b0b0a8;
+  --accent: #0a7a5a;
+  --amber: #b36b00;
+  --danger: #c0392b;
+  --text: #1a1a1a;
+  --muted: #6b6b6b;
+  --btn-ink: #ffffff;
+  --danger-ink: #ffffff;
+  --secondary-bg: #dcdcd2;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -85,9 +135,17 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   border-bottom: 1px solid var(--border);
   padding-bottom: 8px;
+  /* Clears the absolutely-positioned #lock-toggle circle (top-right corner of
+     #app, same corner as this header's flex-end content) so a header button
+     like #layout-edit-toggle doesn't render underneath it. */
+  padding-right: 44px;
 }
+.page-header .page-title { flex: 0 0 auto; }
+.page-header .hdr-status { flex: 1 1 auto; min-width: 0; text-align: right; }
+.page-header button { flex: 0 0 auto; }
 .hdr-status {
   color: var(--muted);
   letter-spacing: 0;
@@ -212,6 +270,10 @@ html, body {
 [data-theme="mono"] .shift-banner.header { background: #1a1a1a; border-style: dashed; }
 [data-theme="amber"] .shift-banner.lift { background: #241a04; }
 [data-theme="amber"] .shift-banner.header { background: #241004; border-style: dashed; }
+/* Red theme's accent/danger are both red-family hues - same escalation-safe
+   dashed-border treatment as mono/amber. */
+[data-theme="red"] .shift-banner.lift { background: #1a0505; }
+[data-theme="red"] .shift-banner.header { background: #1a0505; border-style: dashed; }
 
 .sub-readout {
   text-align: center;
@@ -273,7 +335,7 @@ button {
   font-size: 0.9rem;
   font-weight: 700;
 }
-button.secondary { background: #1a1a1a; color: var(--text); border: 1px solid var(--border); }
+button.secondary { background: var(--secondary-bg); color: var(--text); border: 1px solid var(--border); }
 button.nudge { flex: 0 0 52px; }
 button.small-btn { padding: 6px 10px; font-size: 0.75rem; flex: 0 0 auto; }
 button:active { filter: brightness(0.85); }
@@ -290,6 +352,8 @@ button:active { filter: brightness(0.85); }
    escalation-inversion problem as mono, fixed the same way. */
 [data-theme="amber"] #timer-value.warn { color: #ffffff; }
 [data-theme="amber"] #timer-value.go { color: var(--bg); background: var(--danger); }
+/* Red theme's --amber/--danger are both red-family - same treatment. */
+[data-theme="red"] #timer-value.go { color: var(--bg); background: var(--danger); }
 
 .hold-btn { position: relative; overflow: hidden; touch-action: none; }
 .hold-btn .fill {
@@ -330,6 +394,10 @@ button:active { filter: brightness(0.85); }
 /* Monochrome should mean monochrome - strip the OSM tiles' blue water /
    green land too, not just the app's own UI colors. */
 [data-theme="mono"] #map { filter: grayscale(1) brightness(0.75) contrast(1.1); }
+/* Daylight is the one theme built for bright ambient light, not a dim
+   cockpit - the default darkening filter (tuned for dark themes) would just
+   fight it, so skip it here. */
+[data-theme="daylight"] #map { filter: none; }
 
 .line-end-icon { background: transparent; border: none; }
 .line-end-circle {
@@ -410,7 +478,7 @@ button:active { filter: brightness(0.85); }
   height: 34px;
   padding: 0;
   border-radius: 50%;
-  background: #1a1a1a;
+  background: var(--secondary-bg);
   color: var(--text);
   border: 1px solid var(--border);
   font-size: 1rem;
@@ -447,7 +515,7 @@ button:active { filter: brightness(0.85); }
   width: 160px;
   height: 56px;
   border-radius: 28px;
-  background: #1a1a1a;
+  background: var(--secondary-bg);
   color: var(--text);
   border: 1px solid var(--border);
   font-weight: 700;
