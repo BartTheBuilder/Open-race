@@ -201,7 +201,26 @@ button:active { filter: brightness(0.85); }
 
 #record-toggle.recording { background: var(--danger); color: #2a0a0a; }
 
-#map { flex: 1; min-height: 220px; border-radius: 4px; overflow: hidden; filter: grayscale(0.3) brightness(0.9); }
+/* Heading-up map rotation: #map-viewport is the fixed-size visible window;
+   #map itself is oversized (set in JS, ~1.45x the viewport's diagonal) and
+   centered inside it, so rotating it never reveals empty corners. The
+   rotation itself is applied to #map-rotate-wrapper (inserted around
+   Leaflet's map pane in JS), not to #map or the pane directly - see the
+   comment above mapRotateWrapperEl in app.js for why. */
+#map-viewport { flex: 1; min-height: 220px; border-radius: 4px; overflow: hidden; position: relative; }
+#map {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 145%;  /* JS overrides this with a precise diagonal-based size once the page is visible */
+  height: 145%;
+  filter: grayscale(0.3) brightness(0.9);
+}
+/* Rotates as a unit around its own center (== #map's center, since it fills
+   #map exactly via inset:0) - see the comment above mapRotateWrapperEl in
+   app.js for why this has to be a separate element from Leaflet's own pane. */
+#map-rotate-wrapper { position: absolute; inset: 0; }
 
 .line-end-icon { background: transparent; border: none; }
 .line-end-circle {
