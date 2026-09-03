@@ -173,31 +173,37 @@ if ('geolocation' in navigator) {
   gpsStatusEl.textContent = 'not supported';
 }
 
-/* ---------- heel (from the phone's tilt sensor) ---------- */
-// `gamma` is left/right tilt when the phone is flat, portrait, screen up -
-// the natural way to mount it athwartships on a bulkhead/binnacle. This
-// won't be exactly 0 at rest if the mount itself isn't plumb, so it's
-// zeroable rather than assumed accurate out of the box.
+/* ---------- heel (from the phone's accelerometer) ---------- */
+// Derived from the raw gravity vector (devicemotion) rather than the
+// deviceorientation beta/gamma Euler angles - those hit gimbal lock as beta
+// approaches +-90 degrees, which is exactly the case when the phone is
+// mounted standing upright rather than lying flat (a normal bracket mount).
+// heel = angle of gravity in the device's Y-Z plane, via atan2(gy, gz): this
+// stays correct at any mounting pitch (flat, angled, or standing vertical)
+// as long as the phone's left/right axis is aligned athwartships, which is
+// the natural way to mount it either way. Zeroable since the mount itself
+// won't be exactly plumb.
 let heelZeroOffset = 0;
 
-function onDeviceOrientation(evt) {
-  if (evt.gamma == null) return;
-  const heel = evt.gamma - heelZeroOffset;
-  heelEl.textContent = Math.round(heel);
-  heelEl.dataset.raw = evt.gamma;
+function onDeviceMotion(evt) {
+  const g = evt.accelerationIncludingGravity;
+  if (!g || g.y == null || g.z == null) return;
+  const raw = Math.atan2(g.y, g.z) * 180 / Math.PI;
+  heelEl.textContent = Math.round(raw - heelZeroOffset);
+  heelEl.dataset.raw = raw;
 }
 
-if (window.DeviceOrientationEvent) {
-  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+if (window.DeviceMotionEvent) {
+  if (typeof DeviceMotionEvent.requestPermission === 'function') {
     // iOS-style permission gate; harmless no-op path on Android.
     document.body.addEventListener('click', function requestOnce() {
-      DeviceOrientationEvent.requestPermission().then((res) => {
-        if (res === 'granted') window.addEventListener('deviceorientation', onDeviceOrientation);
+      DeviceMotionEvent.requestPermission().then((res) => {
+        if (res === 'granted') window.addEventListener('devicemotion', onDeviceMotion);
       }).catch(() => {});
       document.body.removeEventListener('click', requestOnce);
     }, { once: true });
   } else {
-    window.addEventListener('deviceorientation', onDeviceOrientation);
+    window.addEventListener('devicemotion', onDeviceMotion);
   }
 } else {
   heelEl.textContent = 'n/a';
