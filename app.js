@@ -543,7 +543,15 @@ function beep(freq = 880, durationMs = 200) {
   } catch (e) { /* audio unavailable, ignore */ }
 }
 
-const firedMarks = new Set();
+// RRS start-sequence sound signals at 5/4/1/0 minutes to go. Sync (below) can
+// jump `timerEndAt` forwards or backwards at any time, so marks are fired by
+// detecting a downward crossing against the previous tick's remaining time
+// rather than exact-equality against a mark - that way a sync backward
+// re-arms a mark that already fired, and a sync forward past a mark simply
+// skips it (correct - that signal's moment has passed), with no separate
+// "already fired" bookkeeping to keep in sync with the jump.
+const START_MARKS_S = [300, 240, 60, 0];
+let prevRemainingS = null;
 
 function tickTimer() {
   if (!state.timerEndAt) return;
@@ -555,13 +563,14 @@ function tickTimer() {
   timerEl.classList.toggle('warn', remainingS <= 60 && remainingS > 0);
   timerEl.classList.toggle('go', remainingS === 0);
 
-  // RRS start sequence sound signals at 5/4/1/0 minutes to go.
-  [300, 240, 60, 0].forEach(mark => {
-    if (remainingS === mark && !firedMarks.has(mark)) {
-      firedMarks.add(mark);
-      beep(mark === 0 ? 1200 : 880, mark === 0 ? 400 : 200);
-    }
-  });
+  if (prevRemainingS != null) {
+    START_MARKS_S.forEach((mark) => {
+      if (prevRemainingS > mark && remainingS <= mark) {
+        beep(mark === 0 ? 1200 : 880, mark === 0 ? 400 : 200);
+      }
+    });
+  }
+  prevRemainingS = remainingS;
 
   updateLineReadout();
 
@@ -571,30 +580,68 @@ function tickTimer() {
   }
 }
 
-document.getElementById('timer-start').addEventListener('click', () => {
+const startSyncBtn = document.getElementById('timer-startsync');
+
+function startTimer() {
   state.timerEndAt = Date.now() + 5 * 60 * 1000;
-  firedMarks.clear();
+  prevRemainingS = 301; // guarantees the 5:00 mark fires on the first tick
   if (state.timerInterval) clearInterval(state.timerInterval);
   state.timerInterval = setInterval(tickTimer, 250);
+  startSyncBtn.textContent = 'Sync';
   tickTimer();
-});
+}
 
-document.getElementById('timer-sync').addEventListener('click', () => {
-  // Nudge the current countdown so it lands exactly on the next whole minute.
+function syncTimer() {
+  // Snap the countdown to whichever of the 5/4/1-minute marks is nearest -
+  // computed in remaining-time space, not wall-clock, so it means the same
+  // thing regardless of when it's pressed.
   if (!state.timerEndAt) return;
-  const rounded = Math.round(state.timerEndAt / 60000) * 60000;
-  state.timerEndAt = rounded;
+  const remainingS = (state.timerEndAt - Date.now()) / 1000;
+  const marks = [300, 240, 60];
+  const nearest = marks.reduce((best, m) =>
+    Math.abs(remainingS - m) < Math.abs(remainingS - best) ? m : best, marks[0]);
+  state.timerEndAt = Date.now() + nearest * 1000;
   tickTimer();
+}
+
+startSyncBtn.addEventListener('click', () => {
+  if (!state.timerEndAt) startTimer();
+  else syncTimer();
 });
 
-document.getElementById('timer-reset').addEventListener('click', () => {
+// Reset needs two presses so a stray tap mid-race can't wipe the countdown -
+// the first press arms it (visibly, with a timeout back to unarmed) and the
+// second within that window actually resets.
+const RESET_ARM_MS = 3000;
+const resetBtn = document.getElementById('timer-reset');
+let resetArmed = false;
+let resetArmTimeout = null;
+
+function disarmReset() {
+  resetArmed = false;
+  resetBtn.textContent = 'Reset';
+  resetBtn.classList.remove('armed');
+  if (resetArmTimeout) { clearTimeout(resetArmTimeout); resetArmTimeout = null; }
+}
+
+resetBtn.addEventListener('click', () => {
+  if (!resetArmed) {
+    resetArmed = true;
+    resetBtn.textContent = 'Press again to reset';
+    resetBtn.classList.add('armed');
+    resetArmTimeout = setTimeout(disarmReset, RESET_ARM_MS);
+    return;
+  }
+
   if (state.timerInterval) clearInterval(state.timerInterval);
   state.timerInterval = null;
   state.timerEndAt = null;
-  firedMarks.clear();
+  prevRemainingS = null;
   timerEl.textContent = '5:00';
   timerEl.classList.remove('warn', 'go');
   burnValueEl.textContent = '--';
+  startSyncBtn.textContent = 'Start 5:00';
+  disarmReset();
 });
 
 /* ---------- recording ---------- */

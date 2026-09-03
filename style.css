@@ -170,6 +170,9 @@ button:active { filter: brightness(0.85); }
 #timer-value.warn { color: var(--amber); }
 #timer-value.go { color: var(--danger); }
 
+.reset-btn { padding: 18px 6px; font-size: 1.05rem; }
+.reset-btn.armed { background: var(--danger); color: #2a0a0a; }
+
 #record-toggle.recording { background: var(--danger); color: #2a0a0a; }
 
 #map { flex: 1; min-height: 220px; border-radius: 4px; overflow: hidden; filter: grayscale(0.3) brightness(0.9); }
