@@ -715,19 +715,40 @@ startSyncBtn.addEventListener('click', () => {
   else syncTimer();
 });
 
-// Reset is hold-to-confirm (same mechanic as the screen-lock unlock button)
-// so a stray tap mid-race can't wipe the countdown.
-const RESET_HOLD_MS = 1200;
-const resetBtn = document.getElementById('timer-reset');
-const resetFill = resetBtn.querySelector('.fill');
-let resetHoldTimer = null;
+// Generic hold-to-confirm wiring (same mechanic as the screen-lock unlock
+// button): a fill bar animates over `holdMs`, and `onConfirm` fires only if
+// the hold completes - used anywhere a stray tap must not trigger something
+// destructive (timer reset, deleting a recorded session, ...). `btn` must
+// contain a `.fill` element as its animated bar.
+function wireHoldToConfirm(btn, holdMs, onConfirm) {
+  const fill = btn.querySelector('.fill');
+  let holdTimer = null;
 
-function resetFillIdle() {
-  resetFill.style.transition = 'none';
-  resetFill.style.width = '0%';
+  function fillIdle() {
+    fill.style.transition = 'none';
+    fill.style.width = '0%';
+  }
+
+  function start(e) {
+    e.preventDefault();
+    fill.style.transition = `width ${holdMs}ms linear`;
+    requestAnimationFrame(() => { fill.style.width = '100%'; });
+    holdTimer = setTimeout(() => { fillIdle(); onConfirm(); }, holdMs);
+  }
+
+  function cancel() {
+    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    fillIdle();
+  }
+
+  btn.addEventListener('pointerdown', start);
+  btn.addEventListener('pointerup', cancel);
+  btn.addEventListener('pointerleave', cancel);
+  btn.addEventListener('pointercancel', cancel);
 }
 
-function doTimerReset() {
+const resetBtn = document.getElementById('timer-reset');
+wireHoldToConfirm(resetBtn, 1200, () => {
   if (state.timerInterval) clearInterval(state.timerInterval);
   state.timerInterval = null;
   state.timerEndAt = null;
@@ -736,25 +757,7 @@ function doTimerReset() {
   timerEl.classList.remove('warn', 'go');
   burnValueEl.textContent = '--';
   startSyncBtn.textContent = 'Start 5:00';
-  resetFillIdle();
-}
-
-function startResetHold(e) {
-  e.preventDefault();
-  resetFill.style.transition = `width ${RESET_HOLD_MS}ms linear`;
-  requestAnimationFrame(() => { resetFill.style.width = '100%'; });
-  resetHoldTimer = setTimeout(doTimerReset, RESET_HOLD_MS);
-}
-
-function cancelResetHold() {
-  if (resetHoldTimer) { clearTimeout(resetHoldTimer); resetHoldTimer = null; }
-  resetFillIdle();
-}
-
-resetBtn.addEventListener('pointerdown', startResetHold);
-resetBtn.addEventListener('pointerup', cancelResetHold);
-resetBtn.addEventListener('pointerleave', cancelResetHold);
-resetBtn.addEventListener('pointercancel', cancelResetHold);
+});
 
 /* ---------- recording ---------- */
 const recordBtn = document.getElementById('record-toggle');
@@ -964,9 +967,9 @@ function renderSessionsList() {
     });
 
     const delBtn = document.createElement('button');
-    delBtn.className = 'small-btn secondary';
-    delBtn.textContent = 'Delete';
-    delBtn.addEventListener('click', () => deleteSession(key));
+    delBtn.className = 'small-btn secondary hold-btn';
+    delBtn.innerHTML = '<span class="fill"></span><span class="label">Hold to Delete</span>';
+    wireHoldToConfirm(delBtn, 1200, () => deleteSession(key));
 
     actions.appendChild(gpxBtn);
     actions.appendChild(delBtn);

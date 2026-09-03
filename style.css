@@ -181,14 +181,8 @@ button:active { filter: brightness(0.85); }
 #timer-value.warn { color: var(--amber); }
 #timer-value.go { color: var(--danger); }
 
-.reset-btn {
-  padding: 18px 6px;
-  font-size: 1.05rem;
-  position: relative;
-  overflow: hidden;
-  touch-action: none;
-}
-.reset-btn .fill {
+.hold-btn { position: relative; overflow: hidden; touch-action: none; }
+.hold-btn .fill {
   position: absolute;
   left: 0;
   top: 0;
@@ -197,7 +191,9 @@ button:active { filter: brightness(0.85); }
   background: var(--danger);
   opacity: 0.4;
 }
-.reset-btn .label { position: relative; }
+.hold-btn .label { position: relative; }
+
+.reset-btn { padding: 18px 6px; font-size: 1.05rem; }
 
 #record-toggle.recording { background: var(--danger); color: #2a0a0a; }
 
