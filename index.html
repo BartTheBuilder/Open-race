@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Race Computer</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="theme-color" content="#05090d">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ================= INSTRUMENTS ================= -->
+  <section class="page active" id="page-instruments">
+    <header class="page-header">INSTRUMENTS <span id="gps-status" class="hdr-status">searching...</span></header>
+
+    <div id="shift-banner" class="shift-banner" hidden></div>
+
+    <div class="sub-readout" id="wind-status">Wind: -- | Tack: --</div>
+
+    <div class="tile-grid">
+      <div class="tile tile-wide">
+        <div class="tile-label">SOG</div>
+        <div class="tile-value"><span id="speed-value">--</span><span class="tile-unit">kn</span></div>
+      </div>
+
+      <div class="tile">
+        <div class="tile-label">COG</div>
+        <div class="tile-value small"><span id="cog-value">--</span><span class="tile-unit">&deg;</span></div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">HEEL</div>
+        <div class="tile-value small"><span id="heel-value">--</span><span class="tile-unit">&deg;</span></div>
+        <button class="small-btn secondary" id="heel-zero">Zero</button>
+      </div>
+
+      <div class="tile tile-wide">
+        <div class="tile-label">START TIMER</div>
+        <div class="tile-value" id="timer-value">5:00</div>
+        <div class="row">
+          <button id="timer-start">Start 5:00</button>
+          <button id="timer-sync" class="secondary">Sync :00</button>
+          <button id="timer-reset" class="secondary">Reset</button>
+        </div>
+      </div>
+
+      <div class="tile tile-wide">
+        <div class="tile-label">LINE</div>
+        <div class="tile-value small" id="burn-value">--</div>
+        <div class="tile-sub" id="line-readout">No line set</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ROUTE ================= -->
+  <section class="page" id="page-route">
+    <header class="page-header">ROUTE</header>
+
+    <div id="map"></div>
+
+    <div class="panel">
+      <div class="row">
+        <button id="ping-pin">Ping Pin End</button>
+        <button id="ping-boat">Ping Boat End</button>
+      </div>
+      <div class="row">
+        <button id="clear-line" class="secondary">Clear Line</button>
+        <button id="record-toggle">Start Recording</button>
+      </div>
+      <div class="sub-readout" id="record-readout">Not recording</div>
+    </div>
+  </section>
+
+  <!-- ================= SETTINGS ================= -->
+  <section class="page" id="page-settings">
+    <header class="page-header">SETTINGS</header>
+
+    <div class="panel">
+      <label>Wind direction (from, °true)</label>
+      <div class="row">
+        <button class="nudge" data-nudge="-5">-5</button>
+        <input id="wind-input" type="number" min="0" max="359" value="0">
+        <button class="nudge" data-nudge="5">+5</button>
+      </div>
+      <div class="row">
+        <button id="fetch-wind" class="secondary">Fetch Forecast Wind</button>
+      </div>
+      <div class="sub-readout" id="wind-forecast-status">Forecast is a regional estimate - refine with calibration below</div>
+    </div>
+
+    <div class="panel">
+      <label>Wind &amp; tack angle calibration</label>
+      <div class="tile-sub">Sail steady close-hauled on starboard, then tack and hold steady on port. Wind direction and tack angle are computed from the two headings - no compass needed.</div>
+      <div class="row">
+        <button class="nudge" data-calib-nudge="-15">-15s</button>
+        <input id="calib-duration" type="number" min="15" max="180" value="45">
+        <button class="nudge" data-calib-nudge="15">+15s</button>
+      </div>
+      <button id="calib-start">Calibrate: Sail Both Tacks</button>
+      <div class="sub-readout" id="calib-status">Not calibrated this session</div>
+      <div class="tile-sub" id="calib-detail"></div>
+    </div>
+
+    <div class="panel">
+      <label>Auto wind from tacking</label>
+      <div class="tile-sub">Once you've been sailing upwind on both tacks, wind direction keeps correcting itself from your average heading on each tack over a rolling window - no need to recalibrate every shift. You'll also get a HEADER/LIFT alert on the Instruments page when it moves.</div>
+      <div class="row">
+        <label style="flex:1; margin:0; display:flex; align-items:center;">
+          <input type="checkbox" id="auto-wind-enabled" checked style="width:auto; margin-right:8px;"> Enabled
+        </label>
+      </div>
+      <label>Rolling window (minutes)</label>
+      <div class="row">
+        <button class="nudge" data-window-nudge="-1">-1</button>
+        <input id="auto-wind-window" type="number" min="1" max="10" value="4">
+        <button class="nudge" data-window-nudge="1">+1</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <label>Recorded sessions</label>
+      <div id="sessions-list"><div class="sub-readout">No sessions recorded yet</div></div>
+    </div>
+  </section>
+
+  <nav id="tabbar">
+    <button class="tab active" data-page="instruments">Instruments</button>
+    <button class="tab" data-page="route">Route</button>
+    <button class="tab" data-page="settings">Settings</button>
+  </nav>
+
+  <button id="lock-toggle" title="Lock screen">&#128274;</button>
+
+  <div id="lock-overlay" hidden>
+    <div id="lock-banner">Screen Locked - keeps display on, blocks touches</div>
+    <button id="unlock-btn"><span class="fill"></span><span class="label">Hold to Unlock</span></button>
+  </div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
