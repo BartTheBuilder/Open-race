@@ -74,25 +74,27 @@
       </div>
 
       <div class="tile" data-block="compass">
-        <div class="tile-label">HEADING</div>
+        <div class="tile-label">WIND</div>
         <div class="compass-dial">
           <svg viewBox="0 0 100 100">
-            <circle cx="50" cy="50" r="45" class="compass-ring" />
-            <text x="50" y="16" class="compass-cardinal">N</text>
-            <text x="89" y="54" class="compass-cardinal">E</text>
-            <text x="50" y="92" class="compass-cardinal">S</text>
-            <text x="11" y="54" class="compass-cardinal">W</text>
-            <g id="compass-needle">
-              <polygon points="50,14 44,54 50,46 56,54" class="compass-needle-shape" />
+            <!-- Rotates with heading, like a gyrocompass repeater card - the
+                 boat icon below is the fixed "lubber line" reference. -->
+            <g id="compass-ring-group">
+              <circle cx="50" cy="50" r="45" class="compass-ring" />
+              <text x="50" y="16" class="compass-cardinal">N</text>
+              <text x="89" y="54" class="compass-cardinal">E</text>
+              <text x="50" y="92" class="compass-cardinal">S</text>
+              <text x="11" y="54" class="compass-cardinal">W</text>
             </g>
+            <!-- Rotates with TWA (boat-relative, independent of heading) -->
+            <g id="wind-needle">
+              <line x1="50" y1="50" x2="50" y2="12" class="wind-needle-line" />
+              <circle cx="50" cy="12" r="3.5" class="wind-needle-tip" />
+            </g>
+            <!-- Fixed - always points "up" (the bow) regardless of rotation above -->
+            <polygon points="50,38 45,58 50,52 55,58" class="boat-icon" />
           </svg>
         </div>
-        <div class="resize-handle"></div>
-      </div>
-
-      <div class="tile" data-block="twa">
-        <div class="tile-label">TWA</div>
-        <div class="tile-value small"><span id="twa-value">--</span></div>
         <div class="resize-handle"></div>
       </div>
     </div>

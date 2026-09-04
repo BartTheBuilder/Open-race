@@ -267,10 +267,15 @@ html, body {
   font-weight: 600;
   text-anchor: middle;
 }
-/* Only the needle rotates (via JS, transform-origin at dial center) - the
-   N/E/S/W card stays fixed, same convention as a real heading indicator. */
-#compass-needle { transform-origin: 50px 50px; }
-.compass-needle-shape { fill: var(--accent); }
+/* Ring rotates with heading (like a gyrocompass repeater card); the wind
+   needle rotates separately with TWA, boat-relative and independent of
+   heading; the boat icon never rotates - it's the fixed "bow up" reference
+   both of the above are read against. All three share one center via the
+   same transform-origin. */
+#compass-ring-group, #wind-needle { transform-origin: 50px 50px; }
+.wind-needle-line { stroke: var(--amber); stroke-width: 3; stroke-linecap: round; }
+.wind-needle-tip { fill: var(--amber); }
+.boat-icon { fill: var(--accent); }
 
 /* SOG/COG/HEEL/etc are real marine abbreviations (Speed/Course Over Ground),
    not a styling choice - they stay capitalized because that's the actual
