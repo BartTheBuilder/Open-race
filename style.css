@@ -15,7 +15,7 @@
   --secondary-bg: #1B2330; /* background for secondary buttons and the lock chrome */
   --radius: 12px;
   --radius-sm: 8px;
-  --cell-h: 56px;   /* one instruments-grid row; JS reads this to match its drag/snap math */
+  --cell-h: 44px;   /* one instruments-grid row; JS reads this to match its drag/snap math - kept smaller than before since the grid no longer scrolls */
   --grid-gap: 10px;
 }
 
@@ -249,8 +249,51 @@ html, body {
 }
 .tile-grid.edit-mode .tile-remove-btn { display: block; }
 
-.hidden-tiles-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.hidden-tiles-list button { flex: 0 0 auto; }
+/* Instruments page is deliberately non-scrolling: not every instrument has
+   to fit at once (that's the point of the tray below) rather than letting
+   the page grow and scroll past the visible screen. */
+#page-instruments { overflow: hidden; }
+#instr-grid { flex: 1; min-height: 0; overflow: hidden; }
+
+#instrument-tray {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+#instrument-tray[hidden] { display: none; }
+.tray-hint { font-size: 0.7rem; color: var(--muted); text-align: center; }
+#hidden-tiles-list { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.tray-chip {
+  flex: 0 0 auto;
+  background: var(--tile);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  touch-action: none;
+  cursor: grab;
+}
+
+/* Ghost tile that follows the pointer while dragging a chip up from the
+   tray - a plain visual clone, not a real grid member until dropped. */
+.drag-ghost {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.85;
+  transform: translate(-50%, -50%);
+}
+
+/* Shown on an on-grid tile while it's being dragged above the grid's top
+   edge, to indicate the drop-to-remove zone is armed. */
+.tile.will-remove { box-shadow: 0 0 0 2px var(--danger); opacity: 0.6; }
 
 .compass-dial {
   width: 100%;

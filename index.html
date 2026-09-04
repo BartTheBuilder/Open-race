@@ -30,11 +30,6 @@
 
     <div class="sub-readout" id="wind-status">Wind: -- | Tack: --</div>
 
-    <div class="panel" id="hidden-tiles-panel" hidden>
-      <label>Add tile</label>
-      <div id="hidden-tiles-list" class="hidden-tiles-list"></div>
-    </div>
-
     <div class="tile-grid" id="instr-grid">
       <div class="tile" data-block="sog">
         <div class="tile-label">SOG</div>
@@ -97,6 +92,11 @@
         </div>
         <div class="resize-handle"></div>
       </div>
+    </div>
+
+    <div id="instrument-tray" hidden>
+      <div class="tray-hint">Drag onto the grid to add · drag a tile here to remove it</div>
+      <div id="hidden-tiles-list"></div>
     </div>
   </section>
 

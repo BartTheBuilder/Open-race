@@ -10,23 +10,29 @@ GPS/compass hardware device for more accuracy.
 Four pages, like a real chartplotter/MFD, switched with the bottom tab bar:
 
 - **Instruments** — SOG, COG, HEEL (from the phone's tilt sensor, zeroable
-  since mounting angle varies), the 5-4-1-0 start countdown (with sound
-  signals and a "sync to :00" button), and a live line readout (distance to
-  line + burn time = time-to-start minus time-to-line) once a line is set on
-  the Route page. VMG is deferred until boat-specific polars exist — a
-  generic speed*cos(angle) number isn't actually useful without a polar to
-  compare it against. Two more tiles exist but are off by default - a
-  **HEADING** compass dial and **TWA** (true wind angle, signed port/
-  starboard) - turn them on from Settings ("Instrument tiles") or the
-  edit-mode "Add tile" list below. Tiles are rearrangeable: tap **Edit** to
-  drag them around a 4-column grid and resize via a corner handle (each tile
-  has its own minimum size, e.g. the timer can't shrink below 4x4); dragging
-  one tile more than 40% onto another same-size tile swaps them instead of
-  just rejecting the drop, and each tile gets a remove (✕) button while in
-  edit mode. The layout is saved and restored automatically, with a per-tile
-  fallback to its default position/visibility if nothing's been customized
-  yet. Settings has a reset button to put wind/tack/unit/theme settings and
-  the tile layout back to defaults (recorded sessions are untouched).
+  since mounting angle varies, and the axis it reads can be switched in
+  Settings for a landscape-mounted phone), the 5-4-1-0 start countdown (with
+  sound signals and a "sync to :00" button), and a live line readout
+  (distance to line + burn time = time-to-start minus time-to-line) once a
+  line is set on the Route page. VMG is deferred until boat-specific polars
+  exist — a generic speed*cos(angle) number isn't actually useful without a
+  polar to compare it against. A **WIND** instrument exists too (off by
+  default): one dial combining a heading ring (rotates like a gyrocompass
+  repeater card), a fixed boat icon (the "bow up" reference), and a needle
+  pointing at the true wind angle relative to the bow.
+
+  This page doesn't scroll - not every instrument has to fit on screen at
+  once. Tap **Edit** to rearrange: drag a tile to reposition it (drag it
+  above the grid's top edge to remove it, like dragging an icon off an
+  Android home screen), drag one tile more than 40% onto another same-size
+  tile to swap them instead of just rejecting the drop, or resize via a
+  corner handle (each tile has its own minimum size, e.g. the timer can't
+  shrink below 4x4). Removed tiles collect in a tray below the grid - drag
+  one back up onto the grid to place it, or tap it to drop it at its default
+  spot. The layout (including which tiles are shown, and where) is saved and
+  restored automatically. Settings has a reset button to put wind/tack/unit/
+  theme settings and the tile layout back to defaults (recorded sessions are
+  untouched).
 - **Route** — the chart/map, pin-end and boat-end line pings, and session
   recording (start/stop). Both line-end markers are draggable, so a GPS ping
   can be nudged to the actual position afterward. The map rotates heading-up

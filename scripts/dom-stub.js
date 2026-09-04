@@ -106,6 +106,10 @@ globalThis.localStorage = (() => {
 })();
 globalThis.fetch = () => Promise.reject(new Error('no network in smoke test'));
 globalThis.requestAnimationFrame = (fn) => fn();
+globalThis.getComputedStyle = () => ({
+  rowGap: '10px',
+  getPropertyValue: () => '',
+});
 globalThis.setInterval = () => 0;
 globalThis.clearInterval = () => {};
 globalThis.setTimeout = () => 0;

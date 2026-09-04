@@ -102,6 +102,11 @@ function switchPage(name) {
     // dimensions that invalidateSize() then reads.
     setTimeout(() => { sizeRotatedMap(); map.invalidateSize(); applyMapRotation(); }, 50);
   }
+  if (name === 'instruments') {
+    // The grid's real height is 0 while its page is display:none, so the
+    // row ceiling has to be (re)measured once it's actually visible.
+    setTimeout(updateMaxRows, 50);
+  }
 }
 
 /* ---------- geo helpers ---------- */
@@ -1302,7 +1307,12 @@ unlockBtn.addEventListener('pointercancel', cancelUnlockHold);
 // wiring elsewhere (which queries those IDs directly) is unaffected by
 // anything in this section.
 const LAYOUT_COLS = 4;
-const LAYOUT_MAX_ROWS = 24; // generous ceiling for moves/resizes, not a real UI limit
+// Real ceiling, not a generous placeholder: the Instruments page doesn't
+// scroll (see #page-instruments/#instr-grid in style.css), so only as many
+// rows as actually fit the visible grid height can ever be placed - anything
+// that doesn't fit stays in the tray until something else is removed.
+// Recomputed by updateMaxRows() since it depends on live viewport height.
+let LAYOUT_MAX_ROWS = 6;
 const MAX_BLOCK_H = 6;
 
 // Per-block minimum size in cells. Not a uniform 2x2 - the timer block has a
@@ -1439,7 +1449,7 @@ function loadLayout() {
     }
   } catch (e) { /* corrupt storage, keep default */ }
   applyLayout();
-  renderHiddenTilesList();
+  renderTray();
 }
 
 // Scans row-by-row for the first free spot a w x h block would fit in - used
@@ -1457,7 +1467,10 @@ function findFreeSpot(w, h, excludeId) {
   return null;
 }
 
-function unhideBlock(id) {
+// Un-hides a block at its default position/size, falling back to the first
+// free spot if that's occupied. Used only as the tap fallback for a tray
+// chip (a real drag targets a specific cell instead - see wireTrayChipDrag).
+function unhideBlockAtDefault(id) {
   const block = layout.find((b) => b.id === id);
   const def = DEFAULT_LAYOUT.find((d) => d.id === id);
   if (!block || !def) return;
@@ -1465,37 +1478,130 @@ function unhideBlock(id) {
   block.h = def.h;
   const atDefault = { x: def.x, y: def.y, w: block.w, h: block.h };
   const spot = fits(atDefault, id) ? atDefault : findFreeSpot(block.w, block.h, id);
-  if (!spot) return; // no room anywhere right now - stays hidden
+  if (!spot) return; // no room anywhere right now - stays in the tray
   block.x = spot.x;
   block.y = spot.y;
   block.hidden = false;
   applyLayout();
   saveLayout();
-  renderTileVisibilityList();
-  renderHiddenTilesList();
+  renderTray();
 }
 
-const hiddenTilesPanel = document.getElementById('hidden-tiles-panel');
+const instrumentTrayEl = document.getElementById('instrument-tray');
 const hiddenTilesListEl = document.getElementById('hidden-tiles-list');
+const DRAG_THRESHOLD_PX = 8; // below this, a tray-chip pointer sequence counts as a tap, not a drag
 
-function renderHiddenTilesList() {
+function renderTray() {
   const hidden = layout.filter((b) => b.hidden);
-  hiddenTilesPanel.hidden = !editMode || hidden.length === 0;
+  instrumentTrayEl.hidden = !editMode || hidden.length === 0;
   hiddenTilesListEl.innerHTML = '';
   hidden.forEach((b) => {
-    const btn = document.createElement('button');
-    btn.className = 'small-btn secondary';
-    btn.textContent = `+ ${BLOCK_LABELS[b.id] || b.id}`;
-    btn.addEventListener('click', () => unhideBlock(b.id));
-    hiddenTilesListEl.appendChild(btn);
+    const chip = document.createElement('div');
+    chip.className = 'tray-chip';
+    chip.textContent = BLOCK_LABELS[b.id] || b.id;
+    wireTrayChipDrag(chip, b.id);
+    hiddenTilesListEl.appendChild(chip);
   });
+}
+
+// Drags a tray chip up onto the grid to place it at the dropped cell; a tap
+// (movement under DRAG_THRESHOLD_PX) falls back to unhideBlockAtDefault.
+function wireTrayChipDrag(chip, id) {
+  let dragState = null; // {startX, startY, moved, ghost}
+
+  chip.addEventListener('pointerdown', (ev) => {
+    dragState = { startX: ev.clientX, startY: ev.clientY, moved: false, pointerId: ev.pointerId };
+    chip.setPointerCapture(ev.pointerId);
+  });
+
+  chip.addEventListener('pointermove', (ev) => {
+    if (!dragState || ev.pointerId !== dragState.pointerId) return;
+    const dx = ev.clientX - dragState.startX;
+    const dy = ev.clientY - dragState.startY;
+    if (!dragState.moved && Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) {
+      dragState.moved = true;
+      dragState.ghost = createDragGhost(id);
+    }
+    if (dragState.ghost) {
+      dragState.ghost.style.left = `${ev.clientX}px`;
+      dragState.ghost.style.top = `${ev.clientY}px`;
+    }
+  });
+
+  function endDrag(ev) {
+    if (!dragState || ev.pointerId !== dragState.pointerId) return;
+    if (dragState.ghost) {
+      dragState.ghost.remove();
+      tryDropTrayChip(id, ev.clientX, ev.clientY);
+    } else if (!dragState.moved) {
+      unhideBlockAtDefault(id);
+    }
+    dragState = null;
+  }
+  chip.addEventListener('pointerup', endDrag);
+  chip.addEventListener('pointercancel', endDrag);
+}
+
+function createDragGhost(id) {
+  const def = DEFAULT_LAYOUT.find((d) => d.id === id);
+  const { gap, cellW, cellH } = gridMetrics();
+  const ghost = document.createElement('div');
+  ghost.className = 'tile drag-ghost';
+  ghost.style.width = `${def.w * cellW + (def.w - 1) * gap}px`;
+  ghost.style.height = `${def.h * cellH + (def.h - 1) * gap}px`;
+  ghost.innerHTML = `<div class="tile-label">${BLOCK_LABELS[id] || id}</div>`;
+  document.body.appendChild(ghost);
+  return ghost;
+}
+
+function tryDropTrayChip(id, clientX, clientY) {
+  const rect = instrGrid.getBoundingClientRect();
+  if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+    return; // dropped outside the grid - stays in the tray
+  }
+  const def = DEFAULT_LAYOUT.find((d) => d.id === id);
+  const { gap, cellW, cellH } = gridMetrics();
+  // Pointer = the dropped block's center.
+  const localX = clientX - rect.left - (def.w * cellW + (def.w - 1) * gap) / 2;
+  const localY = clientY - rect.top - (def.h * cellH + (def.h - 1) * gap) / 2;
+  const candidate = {
+    x: clamp(Math.round(localX / (cellW + gap)), 0, LAYOUT_COLS - def.w),
+    y: clamp(Math.round(localY / (cellH + gap)), 0, LAYOUT_MAX_ROWS - def.h),
+    w: def.w, h: def.h,
+  };
+  if (!fits(candidate, id)) return; // occupied/out of bounds - stays in the tray
+
+  const block = layout.find((b) => b.id === id);
+  block.w = def.w;
+  block.h = def.h;
+  block.x = candidate.x;
+  block.y = candidate.y;
+  block.hidden = false;
+  applyLayout();
+  saveLayout();
+  renderTray();
+}
+
+// Real ceiling for how many grid rows actually fit without the (deliberately
+// non-scrolling) Instruments page overflowing - depends on live viewport
+// height, so it's recomputed rather than a fixed constant.
+function updateMaxRows() {
+  const { gap, cellH } = gridMetrics();
+  const rect = instrGrid.getBoundingClientRect();
+  if (rect.height === 0) return; // page hidden - nothing to measure yet
+  LAYOUT_MAX_ROWS = Math.max(1, Math.floor((rect.height + gap) / (cellH + gap)));
 }
 
 layoutEditToggle.addEventListener('click', () => {
   editMode = !editMode;
   instrGrid.classList.toggle('edit-mode', editMode);
   layoutEditToggle.textContent = editMode ? 'Done' : 'Edit';
-  renderHiddenTilesList();
+  updateMaxRows();
+  renderTray();
+});
+
+window.addEventListener('resize', () => {
+  if (document.getElementById('page-instruments').classList.contains('active')) updateMaxRows();
 });
 
 // Cell geometry, measured live (not hardcoded) so it stays correct across
@@ -1520,9 +1626,11 @@ function flashReject(tile) {
 function startBlockMove(tile, block, downEvent) {
   downEvent.preventDefault();
   const { gap, cellW, cellH } = gridMetrics();
+  const gridRect = instrGrid.getBoundingClientRect();
   const startX = downEvent.clientX, startY = downEvent.clientY;
   const orig = { x: block.x, y: block.y };
   let dCellsX = 0, dCellsY = 0;
+  let overRemoveZone = false;
 
   tile.classList.add('dragging');
   tile.setPointerCapture(downEvent.pointerId);
@@ -1533,14 +1641,26 @@ function startBlockMove(tile, block, downEvent) {
     dCellsX = Math.round(dxPx / (cellW + gap));
     dCellsY = Math.round(dyPx / (cellH + gap));
     tile.style.transform = `translate(${dxPx}px, ${dyPx}px)`;
+    // Drag a tile above the grid's own top edge to remove it - same idea as
+    // dragging an app icon to "Remove" on a phone home screen.
+    overRemoveZone = ev.clientY < gridRect.top;
+    tile.classList.toggle('will-remove', overRemoveZone);
   }
 
   function onUp() {
     tile.removeEventListener('pointermove', onMove);
     tile.removeEventListener('pointerup', onUp);
     tile.removeEventListener('pointercancel', onUp);
-    tile.classList.remove('dragging');
+    tile.classList.remove('dragging', 'will-remove');
     tile.style.transform = '';
+
+    if (overRemoveZone) {
+      block.hidden = true;
+      applyLayout();
+      saveLayout();
+      renderTray();
+      return;
+    }
 
     const candidate = {
       x: clamp(orig.x + dCellsX, 0, LAYOUT_COLS - block.w),
@@ -1662,8 +1782,7 @@ instrGrid.querySelectorAll('.tile[data-block]').forEach((tile) => {
     block.hidden = true;
     applyLayout();
     saveLayout();
-    renderTileVisibilityList();
-    renderHiddenTilesList();
+    renderTray();
   });
   tile.appendChild(removeBtn);
 });
@@ -2125,6 +2244,7 @@ document.getElementById('race-join-btn').addEventListener('click', () => {
 renderRacesList();
 
 loadSettings();
+updateMaxRows(); // Instruments starts as the active page, so this never goes through switchPage()
 loadLayout();
 
 wireHoldToConfirm(document.getElementById('reset-settings'), 1200, () => {
