@@ -334,6 +334,19 @@ const speedEl = document.getElementById('speed-value');
 const speedUnitEl = document.getElementById('speed-unit');
 const cogEl = document.getElementById('cog-value');
 const heelEl = document.getElementById('heel-value');
+const compassNeedleEl = document.getElementById('compass-needle');
+const twaValueEl = document.getElementById('twa-value');
+
+// Optional instrument tiles (hidden by default - see DEFAULT_LAYOUT).
+function updateCompassDial(headingDeg) {
+  compassNeedleEl.style.transform = `rotate(${headingDeg}deg)`;
+}
+
+function updateTwaTile(cog) {
+  const rel = angleDiff(cog, state.windDir);
+  const side = rel > 0 ? 'S' : 'P'; // starboard/port tack - same convention as detectTack()
+  twaValueEl.textContent = `${Math.round(Math.abs(rel))}° ${side}`;
+}
 
 let cogUpdateMs = 0; // 0 = render every fix ("Instant") - display-only, does not affect nav math
 let cogDisplaySamples = [];
@@ -412,7 +425,10 @@ function onPosition(pos) {
   const speedFmt = formatSpeed(speedKn);
   speedEl.textContent = speedFmt.text;
   speedUnitEl.textContent = speedFmt.unit;
-  renderCog((compassFusionEnabled && state.heading != null) ? state.heading : cog, t);
+  const dispHeading = (compassFusionEnabled && state.heading != null) ? state.heading : cog;
+  renderCog(dispHeading, t);
+  updateCompassDial(dispHeading);
+  updateTwaTile(cog); // GPS cog, not the display heading - stays consistent with wind/tack detection elsewhere
 
   updateBoatMarker(lat, lon);
   updateLineReadout();
@@ -1047,6 +1063,7 @@ function updateWindStatus() {
   if (state.tackAngleDeg != null && document.activeElement !== tackAngleInput) {
     tackAngleInput.value = state.tackAngleDeg;
   }
+  if (state.cog != null) updateTwaTile(state.cog);
 }
 
 updateWindStatus();
@@ -1287,18 +1304,27 @@ const BLOCK_MIN = {
   heel: { w: 2, h: 2 },
   timer: { w: 4, h: 4 },
   line: { w: 4, h: 2 },
+  compass: { w: 2, h: 2 },
+  twa: { w: 2, h: 2 },
 };
 
-const BLOCK_LABELS = { sog: 'SOG', cog: 'COG', heel: 'HEEL', timer: 'START TIMER', line: 'LINE' };
+const BLOCK_LABELS = {
+  sog: 'SOG', cog: 'COG', heel: 'HEEL', timer: 'START TIMER', line: 'LINE',
+  compass: 'HEADING', twa: 'TWA',
+};
 
 // Recreates today's fixed arrangement: SOG wide, COG+HEEL side by side,
-// START TIMER wide, LINE wide.
+// START TIMER wide, LINE wide. Compass/TWA are opt-in extras (see the
+// "Instrument tiles" Settings panel / edit-mode "Add tile") - hidden by
+// default so they don't suddenly appear on an existing saved layout.
 const DEFAULT_LAYOUT = [
   { id: 'sog', x: 0, y: 0, w: 4, h: 2, hidden: false },
   { id: 'cog', x: 0, y: 2, w: 2, h: 2, hidden: false },
   { id: 'heel', x: 2, y: 2, w: 2, h: 2, hidden: false },
   { id: 'timer', x: 0, y: 4, w: 4, h: 4, hidden: false },
   { id: 'line', x: 0, y: 8, w: 4, h: 2, hidden: false },
+  { id: 'compass', x: 0, y: 10, w: 2, h: 2, hidden: true },
+  { id: 'twa', x: 2, y: 10, w: 2, h: 2, hidden: true },
 ];
 
 const LAYOUT_KEY = 'rc_layout';

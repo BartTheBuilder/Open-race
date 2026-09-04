@@ -15,14 +15,18 @@ Three pages, like a real chartplotter/MFD, switched with the bottom tab bar:
   line + burn time = time-to-start minus time-to-line) once a line is set on
   the Route page. VMG is deferred until boat-specific polars exist — a
   generic speed*cos(angle) number isn't actually useful without a polar to
-  compare it against. Tiles are rearrangeable: tap **Edit** to drag them
-  around a 4-column grid and resize via a corner handle (each tile has its
-  own minimum size, e.g. the timer can't shrink below 4x4); dragging one tile
-  more than 40% onto another same-size tile swaps them instead of just
-  rejecting the drop. Which tiles show at all is controlled from Settings
-  ("Instrument tiles"). The layout is saved and restored automatically, with
-  a per-tile fallback to its default position if nothing's been customized
-  yet.
+  compare it against. Two more tiles exist but are off by default - a
+  **HEADING** compass dial and **TWA** (true wind angle, signed port/
+  starboard) - turn them on from Settings ("Instrument tiles") or the
+  edit-mode "Add tile" list below. Tiles are rearrangeable: tap **Edit** to
+  drag them around a 4-column grid and resize via a corner handle (each tile
+  has its own minimum size, e.g. the timer can't shrink below 4x4); dragging
+  one tile more than 40% onto another same-size tile swaps them instead of
+  just rejecting the drop, and each tile gets a remove (✕) button while in
+  edit mode. The layout is saved and restored automatically, with a per-tile
+  fallback to its default position/visibility if nothing's been customized
+  yet. Settings has a reset button to put wind/tack/unit/theme settings and
+  the tile layout back to defaults (recorded sessions are untouched).
 - **Route** — the chart/map, pin-end and boat-end line pings, and session
   recording (start/stop). Both line-end markers are draggable, so a GPS ping
   can be nudged to the actual position afterward. The map rotates heading-up
@@ -31,7 +35,9 @@ Three pages, like a real chartplotter/MFD, switched with the bottom tab bar:
   doesn't swing with normal low-speed COG jitter. Map panning and marker
   dragging stay correct at any rotation - both are custom pointer-driven
   (not Leaflet's native dragging), since a raw screen drag has to be rotated
-  into the map's own coordinate space once it isn't sitting north-up.
+  into the map's own coordinate space once it isn't sitting north-up. A
+  recenter button (bottom-right of the map) jumps back to the boat's current
+  position at the current zoom level.
 - **Settings** — wind direction, either typed in manually, fetched as a
   regional forecast estimate (Open-Meteo, free, no key), or measured directly
   by **sailing both tacks**: hold steady close-hauled on starboard, tack, hold

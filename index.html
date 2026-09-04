@@ -72,6 +72,29 @@
         <div class="tile-sub" id="line-readout">No line set</div>
         <div class="resize-handle"></div>
       </div>
+
+      <div class="tile" data-block="compass">
+        <div class="tile-label">HEADING</div>
+        <div class="compass-dial">
+          <svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="45" class="compass-ring" />
+            <text x="50" y="16" class="compass-cardinal">N</text>
+            <text x="89" y="54" class="compass-cardinal">E</text>
+            <text x="50" y="92" class="compass-cardinal">S</text>
+            <text x="11" y="54" class="compass-cardinal">W</text>
+            <g id="compass-needle">
+              <polygon points="50,14 44,54 50,46 56,54" class="compass-needle-shape" />
+            </g>
+          </svg>
+        </div>
+        <div class="resize-handle"></div>
+      </div>
+
+      <div class="tile" data-block="twa">
+        <div class="tile-label">TWA</div>
+        <div class="tile-value small"><span id="twa-value">--</span></div>
+        <div class="resize-handle"></div>
+      </div>
     </div>
   </section>
 
