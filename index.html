@@ -158,15 +158,7 @@
   <section class="page" id="page-settings">
     <header class="page-header"><span class="page-title">Settings</span></header>
 
-    <div class="panel">
-      <label>GPS retry interval (seconds)</label>
-      <div class="tile-sub">If GPS errors out (lost signal, permission issue), the app automatically retries after this delay rather than needing a page reload.</div>
-      <div class="row">
-        <button class="nudge" data-gps-retry-nudge="-5">-5</button>
-        <input id="gps-retry-input" type="number" min="5" max="60" value="10">
-        <button class="nudge" data-gps-retry-nudge="5">+5</button>
-      </div>
-    </div>
+    <div class="settings-section-title">Wind &amp; tack</div>
 
     <div class="panel">
       <label>Wind direction (from, °true)</label>
@@ -220,6 +212,73 @@
       </div>
     </div>
 
+    <div class="settings-section-title">Sensors</div>
+
+    <div class="panel">
+      <label>GPS retry interval (seconds)</label>
+      <div class="tile-sub">If GPS errors out (lost signal, permission issue), the app automatically retries after this delay rather than needing a page reload.</div>
+      <div class="row">
+        <button class="nudge" data-gps-retry-nudge="-5">-5</button>
+        <input id="gps-retry-input" type="number" min="5" max="60" value="10">
+        <button class="nudge" data-gps-retry-nudge="5">+5</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <label>Heel measurement axis</label>
+      <div class="tile-sub">Which pair of the phone's accelerometer axes reads as heel - depends on how the phone is physically mounted. Portrait (screen facing you, flat or upright) is correct for most mounts; switch to Landscape only if the phone is mounted turned 90° from that. Use the Zero button on the HEEL tile to correct for the mount not being perfectly plumb - that works with either axis choice.</div>
+      <select id="heel-axis-select">
+        <option value="yz">Portrait (default)</option>
+        <option value="xz">Landscape</option>
+      </select>
+    </div>
+
+    <div class="panel">
+      <label>Compass-assisted COG (experimental)</label>
+      <div class="tile-sub">Fuses the phone's compass into the COG display at low speed (e.g. pre-start maneuvering), where GPS heading gets noisy. GPS course-over-ground stays the source of truth for tacking/wind detection and GPX export at real sailing speed - this only touches the COG readout and map rotation.</div>
+      <div class="row">
+        <label style="flex:1; margin:0; display:flex; align-items:center; gap:10px;">
+          <input type="checkbox" id="compass-fusion-enabled" > Enabled
+        </label>
+      </div>
+      <div class="sub-readout" id="compass-fusion-status">Compass fusion: waiting for absolute orientation data...</div>
+    </div>
+
+    <div class="panel">
+      <label>Display update rates</label>
+      <div class="tile-sub">How often the COG and HEEL readouts refresh. Slower rates average the samples received in between rather than just sampling less often, so they read smoother, not laggier.</div>
+      <label>COG</label>
+      <select id="cog-rate">
+        <option value="0">Instant</option>
+        <option value="250">0.25s</option>
+        <option value="500">0.5s</option>
+        <option value="750">0.75s</option>
+        <option value="1000">1s</option>
+      </select>
+      <label>Heel</label>
+      <select id="heel-rate">
+        <option value="0">Instant</option>
+        <option value="250">0.25s</option>
+        <option value="500">0.5s</option>
+        <option value="750">0.75s</option>
+        <option value="1000">1s</option>
+      </select>
+    </div>
+
+    <div class="settings-section-title">Map</div>
+
+    <div class="panel">
+      <label>Map orientation</label>
+      <div class="tile-sub">By default the Route map rotates to heading-up, like a chartplotter. Lock it to north-up instead if you'd rather the map never rotates.</div>
+      <div class="row">
+        <label style="flex:1; margin:0; display:flex; align-items:center; gap:10px;">
+          <input type="checkbox" id="map-north-lock" > Lock map to North
+        </label>
+      </div>
+    </div>
+
+    <div class="settings-section-title">Display</div>
+
     <div class="panel">
       <label>Units</label>
       <div class="tile-sub">Each measurement can use whichever unit makes sense for it - a nautical speed with a metric distance is fine.</div>
@@ -244,12 +303,6 @@
     </div>
 
     <div class="panel">
-      <label>Instrument tiles</label>
-      <div class="tile-sub">Choose which instruments appear on the Instruments page. Positions of visible tiles are still set from the Instruments page's Edit mode.</div>
-      <div id="tile-visibility-list"></div>
-    </div>
-
-    <div class="panel">
       <label>Color theme</label>
       <select id="theme-select">
         <option value="default">Default</option>
@@ -261,47 +314,7 @@
       </select>
     </div>
 
-    <div class="panel">
-      <label>Display update rates</label>
-      <div class="tile-sub">How often the COG and HEEL readouts refresh. Slower rates average the samples received in between rather than just sampling less often, so they read smoother, not laggier.</div>
-      <label>COG</label>
-      <select id="cog-rate">
-        <option value="0">Instant</option>
-        <option value="250">0.25s</option>
-        <option value="500">0.5s</option>
-        <option value="750">0.75s</option>
-        <option value="1000">1s</option>
-      </select>
-      <label>Heel</label>
-      <select id="heel-rate">
-        <option value="0">Instant</option>
-        <option value="250">0.25s</option>
-        <option value="500">0.5s</option>
-        <option value="750">0.75s</option>
-        <option value="1000">1s</option>
-      </select>
-    </div>
-
-    <div class="panel">
-      <label>Compass-assisted COG (experimental)</label>
-      <div class="tile-sub">Fuses the phone's compass into the COG display at low speed (e.g. pre-start maneuvering), where GPS heading gets noisy. GPS course-over-ground stays the source of truth for tacking/wind detection and GPX export at real sailing speed - this only touches the COG readout and map rotation.</div>
-      <div class="row">
-        <label style="flex:1; margin:0; display:flex; align-items:center; gap:10px;">
-          <input type="checkbox" id="compass-fusion-enabled" > Enabled
-        </label>
-      </div>
-      <div class="sub-readout" id="compass-fusion-status">Compass fusion: waiting for absolute orientation data...</div>
-    </div>
-
-    <div class="panel">
-      <label>Map orientation</label>
-      <div class="tile-sub">By default the Route map rotates to heading-up, like a chartplotter. Lock it to north-up instead if you'd rather the map never rotates.</div>
-      <div class="row">
-        <label style="flex:1; margin:0; display:flex; align-items:center; gap:10px;">
-          <input type="checkbox" id="map-north-lock" > Lock map to North
-        </label>
-      </div>
-    </div>
+    <div class="settings-section-title">Data</div>
 
     <div class="panel">
       <label>Recorded sessions</label>

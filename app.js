@@ -496,20 +496,23 @@ document.querySelectorAll('[data-gps-retry-nudge]').forEach((btn) => {
 // deviceorientation beta/gamma Euler angles - those hit gimbal lock as beta
 // approaches +-90 degrees, which is exactly the case when the phone is
 // mounted standing upright rather than lying flat (a normal bracket mount).
-// heel = angle of gravity in the device's Y-Z plane, via atan2(gy, gz): this
-// stays correct at any mounting pitch (flat, angled, or standing vertical)
-// as long as the phone's left/right axis is aligned athwartships, which is
-// the natural way to mount it either way. Zeroable since the mount itself
-// won't be exactly plumb.
+// heel = angle of gravity in a plane through the device's Z axis, via
+// atan2(g?, gz): this stays correct at any mounting PITCH (flat, angled, or
+// standing vertical) as long as the phone isn't rotated 90 degrees from the
+// assumed portrait orientation - which axis pairs with Z for that (Y for
+// portrait, X for landscape) is the one thing gravity alone can't infer, so
+// it's a Settings choice (heelAxis) rather than auto-detected. Zeroable
+// (heelZeroOffset) since the mount itself won't be exactly plumb either way.
 let heelZeroOffset = 0;
+let heelAxis = 'yz'; // 'yz' (portrait, default) | 'xz' (landscape)
 let heelUpdateMs = 0; // 0 = render every sample ("Instant")
 let heelSamples = [];
 let heelLastRender = 0;
 
 function onDeviceMotion(evt) {
   const g = evt.accelerationIncludingGravity;
-  if (!g || g.y == null || g.z == null) return;
-  const raw = Math.atan2(g.y, g.z) * 180 / Math.PI;
+  if (!g || g.x == null || g.y == null || g.z == null) return;
+  const raw = (heelAxis === 'xz' ? Math.atan2(g.x, g.z) : Math.atan2(g.y, g.z)) * 180 / Math.PI;
   heelEl.dataset.raw = raw;
   heelSamples.push(raw);
 
@@ -635,6 +638,11 @@ document.getElementById('heel-zero').addEventListener('click', () => {
 
 document.getElementById('heel-rate').addEventListener('change', (e) => {
   heelUpdateMs = parseInt(e.target.value, 10) || 0;
+  saveSettings();
+});
+
+document.getElementById('heel-axis-select').addEventListener('change', (e) => {
+  heelAxis = e.target.value === 'xz' ? 'xz' : 'yz';
   saveSettings();
 });
 
@@ -1430,34 +1438,7 @@ function loadLayout() {
     }
   } catch (e) { /* corrupt storage, keep default */ }
   applyLayout();
-  renderTileVisibilityList();
   renderHiddenTilesList();
-}
-
-function renderTileVisibilityList() {
-  const listEl = document.getElementById('tile-visibility-list');
-  if (!listEl) return;
-  listEl.innerHTML = '';
-  layout.forEach((b) => {
-    const row = document.createElement('label');
-    row.style.display = 'flex';
-    row.style.alignItems = 'center';
-    row.style.margin = '0';
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.style.width = 'auto';
-    cb.style.marginRight = '8px';
-    cb.checked = !b.hidden;
-    cb.addEventListener('change', () => {
-      b.hidden = !cb.checked;
-      applyLayout();
-      saveLayout();
-      renderHiddenTilesList();
-    });
-    row.appendChild(cb);
-    row.appendChild(document.createTextNode(BLOCK_LABELS[b.id] || b.id));
-    listEl.appendChild(row);
-  });
 }
 
 // Scans row-by-row for the first free spot a w x h block would fit in - used
@@ -1942,6 +1923,7 @@ function saveSettings() {
       cogUpdateMs,
       heelUpdateMs,
       heelZeroOffset,
+      heelAxis,
       calibDurationS: parseInt(document.getElementById('calib-duration').value, 10) || 45,
       gpsRetryS,
       theme: currentTheme,
@@ -1983,6 +1965,10 @@ function loadSettings() {
     document.getElementById('heel-rate').value = String(s.heelUpdateMs);
   }
   if (typeof s.heelZeroOffset === 'number') heelZeroOffset = s.heelZeroOffset;
+  if (s.heelAxis === 'xz' || s.heelAxis === 'yz') {
+    heelAxis = s.heelAxis;
+    document.getElementById('heel-axis-select').value = s.heelAxis;
+  }
   if (typeof s.calibDurationS === 'number') document.getElementById('calib-duration').value = s.calibDurationS;
   if (typeof s.gpsRetryS === 'number') {
     gpsRetryS = Math.min(60, Math.max(5, s.gpsRetryS));

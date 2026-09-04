@@ -353,6 +353,15 @@ label {
   font-weight: 600;
 }
 
+.settings-section-title {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  margin: 6px 2px -2px;
+}
+.settings-section-title:first-child { margin-top: 0; }
+
 .row { display: flex; gap: 8px; }
 
 select {
