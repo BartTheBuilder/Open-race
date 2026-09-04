@@ -7,10 +7,10 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<meta name="theme-color" content="#05090d">
+<meta name="theme-color" content="#0A0E14">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="style.css">
 </head>
@@ -21,8 +21,8 @@
   <!-- ================= INSTRUMENTS ================= -->
   <section class="page active" id="page-instruments">
     <header class="page-header">
-      <span class="page-title">INSTRUMENTS</span>
-      <span id="gps-status" class="hdr-status">searching...</span>
+      <span class="page-title">Instruments</span>
+      <span id="gps-status" class="hdr-status">Searching…</span>
       <button class="small-btn secondary" id="layout-edit-toggle" type="button">Edit</button>
     </header>
 
@@ -100,7 +100,7 @@
 
   <!-- ================= ROUTE ================= -->
   <section class="page" id="page-route">
-    <header class="page-header">ROUTE</header>
+    <header class="page-header"><span class="page-title">Route</span></header>
 
     <div id="map-viewport">
       <div id="map"></div>
@@ -122,7 +122,7 @@
 
   <!-- ================= SETTINGS ================= -->
   <section class="page" id="page-settings">
-    <header class="page-header">SETTINGS</header>
+    <header class="page-header"><span class="page-title">Settings</span></header>
 
     <div class="panel">
       <label>GPS retry interval (seconds)</label>
@@ -174,8 +174,8 @@
       <label>Auto wind from tacking</label>
       <div class="tile-sub">Once you've been sailing upwind on both tacks, wind direction keeps correcting itself from your average heading on each tack over a rolling window - no need to recalibrate every shift. You'll also get a HEADER/LIFT alert on the Instruments page when it moves.</div>
       <div class="row">
-        <label style="flex:1; margin:0; display:flex; align-items:center;">
-          <input type="checkbox" id="auto-wind-enabled" checked style="width:auto; margin-right:8px;"> Enabled
+        <label style="flex:1; margin:0; display:flex; align-items:center; gap:10px;">
+          <input type="checkbox" id="auto-wind-enabled" checked > Enabled
         </label>
       </div>
       <label>Rolling window (minutes)</label>
@@ -252,8 +252,8 @@
       <label>Compass-assisted COG (experimental)</label>
       <div class="tile-sub">Fuses the phone's compass into the COG display at low speed (e.g. pre-start maneuvering), where GPS heading gets noisy. GPS course-over-ground stays the source of truth for tacking/wind detection and GPX export at real sailing speed - this only touches the COG readout and map rotation.</div>
       <div class="row">
-        <label style="flex:1; margin:0; display:flex; align-items:center;">
-          <input type="checkbox" id="compass-fusion-enabled" style="width:auto; margin-right:8px;"> Enabled
+        <label style="flex:1; margin:0; display:flex; align-items:center; gap:10px;">
+          <input type="checkbox" id="compass-fusion-enabled" > Enabled
         </label>
       </div>
       <div class="sub-readout" id="compass-fusion-status">Compass fusion: waiting for absolute orientation data...</div>
@@ -263,8 +263,8 @@
       <label>Map orientation</label>
       <div class="tile-sub">By default the Route map rotates to heading-up, like a chartplotter. Lock it to north-up instead if you'd rather the map never rotates.</div>
       <div class="row">
-        <label style="flex:1; margin:0; display:flex; align-items:center;">
-          <input type="checkbox" id="map-north-lock" style="width:auto; margin-right:8px;"> Lock map to North
+        <label style="flex:1; margin:0; display:flex; align-items:center; gap:10px;">
+          <input type="checkbox" id="map-north-lock" > Lock map to North
         </label>
       </div>
     </div>

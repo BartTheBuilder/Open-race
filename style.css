@@ -1,16 +1,20 @@
 :root {
-  --bg: #000000;
-  --panel: #0a0a0a;
-  --tile: #0a0a0a;
-  --border: #2a2a2a;
-  --accent: #39ffb0;
-  --amber: #ffb020;
-  --danger: #ff5f5f;
-  --text: #e8e8e8;
-  --muted: #6b6b6b;
-  --btn-ink: #04231e;    /* text color for a solid --accent button */
-  --danger-ink: #2a0a0a; /* text color for a solid --danger button (recording state) */
-  --secondary-bg: #1a1a1a; /* background for secondary buttons and the lock chrome */
+  /* Base palette - a richer near-black rather than flat #000, so the app has
+     some depth instead of reading as a plain terminal. */
+  --bg: #0A0E14;
+  --panel: #131A24;
+  --tile: #131A24;
+  --border: #232C3A;
+  --accent: #14E8C4;
+  --amber: #FFA630;
+  --danger: #FF4D5E;
+  --text: #EEF2F5;
+  --muted: #8A94A6;
+  --btn-ink: #04231E;    /* text color for a solid --accent button */
+  --danger-ink: #2A0A0A; /* text color for a solid --danger button (recording state) */
+  --secondary-bg: #1B2330; /* background for secondary buttons and the lock chrome */
+  --radius: 12px;
+  --radius-sm: 8px;
   --cell-h: 56px;   /* one instruments-grid row; JS reads this to match its drag/snap math */
   --grid-gap: 10px;
 }
@@ -30,6 +34,7 @@
   --muted: #8a8a8a; /* kept lighter than default's --muted - mono loses all color cues, so brightness has to carry more of the hierarchy */
   --btn-ink: #050505;
   --danger-ink: #050505;
+  --secondary-bg: #1a1a1a;
 }
 
 [data-theme="amber"] {
@@ -44,6 +49,7 @@
   --muted: #8f6a2c;
   --btn-ink: #241500;
   --danger-ink: #1a0a00;
+  --secondary-bg: #1a1206;
 }
 
 /* Classic nautical "red at night" mode - preserves night vision on deck.
@@ -61,6 +67,7 @@
   --muted: #8a3a3a;
   --btn-ink: #1a0000;
   --danger-ink: #1a0000;
+  --secondary-bg: #1a0505;
 }
 
 [data-theme="ocean"] {
@@ -75,6 +82,7 @@
   --muted: #5a7a95;
   --btn-ink: #001a22;
   --danger-ink: #2a0a0a;
+  --secondary-bg: #0d1622;
 }
 
 /* Bright, light-background palette for high-glare daylight readability -
@@ -102,7 +110,7 @@ html, body {
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'Inter', -apple-system, sans-serif;
   overscroll-behavior: none;
   height: 100%;
 }
@@ -121,23 +129,22 @@ html, body {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  padding: 10px;
-  gap: 10px;
+  padding: 14px;
+  gap: 12px;
   overflow-y: auto;
 }
 .page.active { display: flex; }
 
 .page-header {
-  text-transform: uppercase;
-  letter-spacing: 2px;
   color: var(--text);
-  font-size: 0.9rem;
+  font-size: 1.1rem;
+  font-weight: 600;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 8px;
   border-bottom: 1px solid var(--border);
-  padding-bottom: 8px;
+  padding-bottom: 10px;
   /* Clears the absolutely-positioned #lock-toggle circle (top-right corner of
      #app, same corner as this header's flex-end content) so a header button
      like #layout-edit-toggle doesn't render underneath it. */
@@ -148,9 +155,8 @@ html, body {
 .page-header button { flex: 0 0 auto; }
 .hdr-status {
   color: var(--muted);
-  letter-spacing: 0;
-  text-transform: none;
   font-size: 0.8rem;
+  font-weight: 400;
 }
 
 .tile-grid {
@@ -168,7 +174,7 @@ html, body {
 .tile-grid.edit-mode {
   outline: 1px dashed var(--border);
   outline-offset: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background-image:
     repeating-linear-gradient(to right, var(--border) 0 1px, transparent 1px 25%),
     repeating-linear-gradient(to bottom, var(--border) 0 1px, transparent 1px calc(var(--cell-h) + var(--grid-gap)));
@@ -183,8 +189,8 @@ html, body {
 .tile {
   background: var(--tile);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 12px;
+  border-radius: var(--radius-sm);
+  padding: 14px;
   text-align: center;
   position: relative;
   min-width: 0;
@@ -256,8 +262,9 @@ html, body {
 .compass-ring { fill: none; stroke: var(--border); stroke-width: 2; }
 .compass-cardinal {
   fill: var(--muted);
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'Inter', sans-serif;
   font-size: 9px;
+  font-weight: 600;
   text-anchor: middle;
 }
 /* Only the needle rotates (via JS, transform-origin at dial center) - the
@@ -265,10 +272,14 @@ html, body {
 #compass-needle { transform-origin: 50px 50px; }
 .compass-needle-shape { fill: var(--accent); }
 
+/* SOG/COG/HEEL/etc are real marine abbreviations (Speed/Course Over Ground),
+   not a styling choice - they stay capitalized because that's the actual
+   terminology, same as a real instrument's silkscreened label. */
 .tile-label {
   color: var(--muted);
-  font-size: 0.75rem;
-  letter-spacing: 2px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 1px;
   text-transform: uppercase;
   margin-bottom: 6px;
 }
@@ -276,6 +287,8 @@ html, body {
 .tile-value {
   /* --tile-scale is set per-block by JS from its current w/h vs. its own
      minimum size, so a bigger block actually gets a bigger readout. */
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
   font-size: calc(3rem * var(--tile-scale, 1));
   line-height: 1;
   color: var(--text);
@@ -283,7 +296,9 @@ html, body {
 .tile-value.small { font-size: calc(2rem * var(--tile-scale, 1)); }
 #timer-value.tile-value { font-size: calc(2.6rem * var(--tile-scale, 1)); }
 .tile-unit {
-  font-size: 1.1rem;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  font-size: 1rem;
   color: var(--muted);
   margin-left: 6px;
 }
@@ -297,13 +312,12 @@ html, body {
 .shift-banner {
   text-align: center;
   padding: 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
-.shift-banner.lift { background: #071a12; color: var(--accent); border: 1px solid var(--accent); }
-.shift-banner.header { background: #200808; color: var(--danger); border: 1px solid var(--danger); }
+.shift-banner.lift { background: #0d2620; color: var(--accent); border: 1px solid var(--accent); }
+.shift-banner.header { background: #2a1014; color: var(--danger); border: 1px solid var(--danger); }
 /* Non-color themes: the LIFT/HEADER text already carries the meaning (see
    JS), but a dashed border on HEADER gives a second, shape-based cue since
    lift/header would otherwise render as near-identical grey/amber boxes. */
@@ -325,8 +339,8 @@ html, body {
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 12px;
+  border-radius: var(--radius);
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -334,10 +348,9 @@ html, body {
 
 label {
   display: block;
-  color: var(--muted);
-  font-size: 0.8rem;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
 .row { display: flex; gap: 8px; }
@@ -349,8 +362,8 @@ select {
   color: var(--text);
   font-family: inherit;
   font-size: 1rem;
-  border-radius: 4px;
-  padding: 8px;
+  border-radius: var(--radius-sm);
+  padding: 10px;
 }
 
 input[type="number"] {
@@ -358,11 +371,44 @@ input[type="number"] {
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--text);
-  font-family: inherit;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
   font-size: 1.3rem;
   text-align: center;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 8px;
+}
+
+/* Native checkboxes re-skinned as toggle switches - purely visual, no HTML/JS
+   changes needed since `.checked` still works exactly the same underneath. */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 44px;
+  height: 26px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--border);
+  position: relative;
+  cursor: pointer;
+  margin: 0;
+  transition: background 0.15s ease;
+}
+input[type="checkbox"]::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: transform 0.15s ease;
+}
+input[type="checkbox"]:checked { background: var(--accent); }
+input[type="checkbox"]:checked::before {
+  transform: translateX(18px);
+  background: var(--btn-ink);
 }
 
 button {
@@ -370,11 +416,11 @@ button {
   background: var(--accent);
   color: var(--btn-ink);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 12px 6px;
   font-family: inherit;
   font-size: 0.9rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 button.secondary { background: var(--secondary-bg); color: var(--text); border: 1px solid var(--border); }
 button.nudge { flex: 0 0 52px; }
@@ -408,7 +454,7 @@ button:active { filter: brightness(0.85); }
 }
 .hold-btn .label { position: relative; }
 
-.reset-btn { padding: 18px 6px; font-size: 1.05rem; }
+.reset-btn { padding: 18px 6px; font-size: 1.05rem; border-radius: 999px; }
 
 #record-toggle.recording { background: var(--danger); color: var(--danger-ink); }
 
@@ -422,7 +468,7 @@ button:active { filter: brightness(0.85); }
    own native page-scroll/pinch-zoom gestures - without it, mobile browsers
    can grab the touch sequence away from our pointer handlers mid-drag,
    which is why panning felt broken/unresponsive before this. */
-#map-viewport { flex: 1; min-height: 220px; border-radius: 4px; overflow: hidden; position: relative; touch-action: none; }
+#map-viewport { flex: 1; min-height: 220px; border-radius: var(--radius); overflow: hidden; position: relative; touch-action: none; }
 #map {
   position: absolute;
   top: 50%;
@@ -455,7 +501,7 @@ button:active { filter: brightness(0.85); }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'Space Grotesk', sans-serif;
   font-size: 0.7rem;
   font-weight: 700;
 }
@@ -465,30 +511,31 @@ button:active { filter: brightness(0.85); }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--tile);
+  background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
   gap: 8px;
 }
-.session-info { font-size: 0.8rem; color: var(--text); line-height: 1.3; min-width: 0; }
+.session-info { font-size: 0.85rem; color: var(--text); line-height: 1.3; min-width: 0; }
 .session-info .muted { color: var(--muted); }
 .session-title-row { display: flex; align-items: center; gap: 6px; }
 .session-title-row span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
 }
 .session-rename-btn { flex: 0 0 auto; padding: 2px 6px; font-size: 0.8rem; line-height: 1; }
 .session-rename-input {
   flex: 1;
   min-width: 0;
-  background: var(--bg);
+  background: var(--panel);
   border: 1px solid var(--border);
   color: var(--text);
   font-family: inherit;
   font-size: 0.8rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 2px 6px;
 }
 .session-actions { display: flex; gap: 6px; }
@@ -506,9 +553,7 @@ button:active { filter: brightness(0.85); }
   border-radius: 0;
   padding: 12px 4px;
   font-size: 0.8rem;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  font-weight: 700;
+  font-weight: 600;
 }
 #tabbar .tab.active { color: var(--accent); }
 
@@ -568,8 +613,6 @@ button:active { filter: brightness(0.85); }
   text-align: center;
   color: var(--muted);
   font-size: 0.75rem;
-  letter-spacing: 2px;
-  text-transform: uppercase;
 }
 
 #unlock-btn {
@@ -581,8 +624,6 @@ button:active { filter: brightness(0.85); }
   color: var(--text);
   border: 1px solid var(--border);
   font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
   position: relative;
   overflow: hidden;
   touch-action: none;
