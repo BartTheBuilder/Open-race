@@ -224,6 +224,28 @@ html, body {
 }
 .tile-grid.edit-mode .resize-handle { display: block; }
 
+.tile-remove-btn {
+  display: none;
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 5;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--danger);
+  color: var(--danger-ink);
+  border: none;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+.tile-grid.edit-mode .tile-remove-btn { display: block; }
+
+.hidden-tiles-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.hidden-tiles-list button { flex: 0 0 auto; }
+
 .tile-label {
   color: var(--muted);
   font-size: 0.75rem;
@@ -486,6 +508,23 @@ button:active { filter: brightness(0.85); }
   color: var(--text);
   border: 1px solid var(--border);
   font-size: 1rem;
+  line-height: 1;
+}
+
+#map-recenter {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  z-index: 15;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--secondary-bg);
+  color: var(--accent);
+  border: 1px solid var(--border);
+  font-size: 1.3rem;
   line-height: 1;
 }
 

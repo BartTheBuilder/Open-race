@@ -301,6 +301,11 @@ function updateBoatMarker(lat, lon) {
   }
 }
 
+document.getElementById('map-recenter').addEventListener('click', () => {
+  if (!state.lastFix) return;
+  map.setView([state.lastFix.lat, state.lastFix.lon], map.getZoom());
+});
+
 // Circle-in-a-div markers instead of Leaflet's default pin icon: the default
 // pulls PNGs from unpkg, which breaks offline (exactly when this matters
 // most, mid-race with no signal) and doesn't give a precise center point the
@@ -1400,6 +1405,7 @@ function loadLayout() {
   } catch (e) { /* corrupt storage, keep default */ }
   applyLayout();
   renderTileVisibilityList();
+  renderHiddenTilesList();
 }
 
 function renderTileVisibilityList() {
@@ -1420,6 +1426,7 @@ function renderTileVisibilityList() {
       b.hidden = !cb.checked;
       applyLayout();
       saveLayout();
+      renderHiddenTilesList();
     });
     row.appendChild(cb);
     row.appendChild(document.createTextNode(BLOCK_LABELS[b.id] || b.id));
@@ -1427,10 +1434,60 @@ function renderTileVisibilityList() {
   });
 }
 
+// Scans row-by-row for the first free spot a w x h block would fit in - used
+// when un-hiding a block whose old/default position is now occupied by
+// something else. No reflow of anything already placed, same as a normal
+// blocked drag: this only searches for empty space, it never displaces
+// another block to make room.
+function findFreeSpot(w, h, excludeId) {
+  for (let y = 0; y <= LAYOUT_MAX_ROWS - h; y++) {
+    for (let x = 0; x <= LAYOUT_COLS - w; x++) {
+      const candidate = { x, y, w, h };
+      if (fits(candidate, excludeId)) return candidate;
+    }
+  }
+  return null;
+}
+
+function unhideBlock(id) {
+  const block = layout.find((b) => b.id === id);
+  const def = DEFAULT_LAYOUT.find((d) => d.id === id);
+  if (!block || !def) return;
+  block.w = def.w;
+  block.h = def.h;
+  const atDefault = { x: def.x, y: def.y, w: block.w, h: block.h };
+  const spot = fits(atDefault, id) ? atDefault : findFreeSpot(block.w, block.h, id);
+  if (!spot) return; // no room anywhere right now - stays hidden
+  block.x = spot.x;
+  block.y = spot.y;
+  block.hidden = false;
+  applyLayout();
+  saveLayout();
+  renderTileVisibilityList();
+  renderHiddenTilesList();
+}
+
+const hiddenTilesPanel = document.getElementById('hidden-tiles-panel');
+const hiddenTilesListEl = document.getElementById('hidden-tiles-list');
+
+function renderHiddenTilesList() {
+  const hidden = layout.filter((b) => b.hidden);
+  hiddenTilesPanel.hidden = !editMode || hidden.length === 0;
+  hiddenTilesListEl.innerHTML = '';
+  hidden.forEach((b) => {
+    const btn = document.createElement('button');
+    btn.className = 'small-btn secondary';
+    btn.textContent = `+ ${BLOCK_LABELS[b.id] || b.id}`;
+    btn.addEventListener('click', () => unhideBlock(b.id));
+    hiddenTilesListEl.appendChild(btn);
+  });
+}
+
 layoutEditToggle.addEventListener('click', () => {
   editMode = !editMode;
   instrGrid.classList.toggle('edit-mode', editMode);
   layoutEditToggle.textContent = editMode ? 'Done' : 'Edit';
+  renderHiddenTilesList();
 });
 
 // Cell geometry, measured live (not hardcoded) so it stays correct across
@@ -1570,7 +1627,7 @@ instrGrid.querySelectorAll('.tile[data-block]').forEach((tile) => {
   const handle = tile.querySelector('.resize-handle');
 
   tile.addEventListener('pointerdown', (e) => {
-    if (!editMode || e.target.closest('.resize-handle')) return;
+    if (!editMode || e.target.closest('.resize-handle') || e.target.closest('.tile-remove-btn')) return;
     const block = layout.find((b) => b.id === id);
     startBlockMove(tile, block, e);
   });
@@ -1580,6 +1637,27 @@ instrGrid.querySelectorAll('.tile[data-block]').forEach((tile) => {
     const block = layout.find((b) => b.id === id);
     startBlockResize(tile, block, e);
   });
+
+  // Injected in JS rather than added to each tile's HTML individually - that
+  // markup is hand-duplicated per instrument and easy to get subtly wrong
+  // (or, worse, to accidentally clobber one of the live-readout ids nested
+  // inside it) across 5 near-identical blocks.
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'tile-remove-btn';
+  removeBtn.type = 'button';
+  removeBtn.textContent = '✕'; // multiplication-x
+  removeBtn.title = `Remove ${BLOCK_LABELS[id] || id}`;
+  removeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const block = layout.find((b) => b.id === id);
+    if (!block) return;
+    block.hidden = true;
+    applyLayout();
+    saveLayout();
+    renderTileVisibilityList();
+    renderHiddenTilesList();
+  });
+  tile.appendChild(removeBtn);
 });
 
 function trackDistanceM(points) {
@@ -1918,6 +1996,16 @@ function loadSettings() {
 
 loadSettings();
 loadLayout();
+
+wireHoldToConfirm(document.getElementById('reset-settings'), 1200, () => {
+  // A full reload is the simplest reliable way to get every setting back to
+  // its default - most of them are read into top-level `let`s once at
+  // startup (loadSettings/loadLayout), and resetting each one by hand here
+  // would just be a second, easily-drifting copy of that same logic.
+  localStorage.removeItem(SETTINGS_KEY);
+  localStorage.removeItem(LAYOUT_KEY);
+  location.reload();
+});
 
 /* ---------- service worker ---------- */
 if ('serviceWorker' in navigator) {

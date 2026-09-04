@@ -30,6 +30,11 @@
 
     <div class="sub-readout" id="wind-status">Wind: -- | Tack: --</div>
 
+    <div class="panel" id="hidden-tiles-panel" hidden>
+      <label>Add tile</label>
+      <div id="hidden-tiles-list" class="hidden-tiles-list"></div>
+    </div>
+
     <div class="tile-grid" id="instr-grid">
       <div class="tile" data-block="sog">
         <div class="tile-label">SOG</div>
@@ -74,7 +79,10 @@
   <section class="page" id="page-route">
     <header class="page-header">ROUTE</header>
 
-    <div id="map-viewport"><div id="map"></div></div>
+    <div id="map-viewport">
+      <div id="map"></div>
+      <button id="map-recenter" title="Center on boat">&#8982;</button>
+    </div>
 
     <div class="panel">
       <div class="row">
@@ -241,6 +249,12 @@
     <div class="panel">
       <label>Recorded sessions</label>
       <div id="sessions-list"><div class="sub-readout">No sessions recorded yet</div></div>
+    </div>
+
+    <div class="panel">
+      <label>Reset</label>
+      <div class="tile-sub">Resets wind/tack/unit/theme settings and the Instruments tile layout back to defaults. Does not delete recorded sessions.</div>
+      <button id="reset-settings" class="secondary hold-btn"><span class="fill"></span><span class="label">Hold to Reset Settings</span></button>
     </div>
   </section>
 
