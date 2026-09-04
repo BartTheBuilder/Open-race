@@ -228,7 +228,7 @@ function currentMapRotationDeg() {
 map.dragging.disable();
 
 let mapActivePointers = 0;
-let mapPanState = null; // {x, y, pointerId}
+let mapPanState = null; // {x, y, pointerId, remX, remY}
 
 function onMapPointerDown(ev) {
   mapActivePointers++;
@@ -243,7 +243,7 @@ function onMapPointerDown(ev) {
     return;
   }
   if (!ev.isPrimary) return;
-  mapPanState = { x: ev.clientX, y: ev.clientY, pointerId: ev.pointerId };
+  mapPanState = { x: ev.clientX, y: ev.clientY, pointerId: ev.pointerId, remX: 0, remY: 0 };
   mapViewportEl.setPointerCapture(ev.pointerId);
 }
 
@@ -254,9 +254,20 @@ function onMapPointerMove(ev) {
   mapPanState.x = ev.clientX;
   mapPanState.y = ev.clientY;
   const rotated = rotateVector(dx, dy, -currentMapRotationDeg());
+  // panBy() rounds its offset to whole pixels internally and does nothing at
+  // all if that rounds to (0,0) - a slow drag fires many small per-event
+  // deltas that round away to zero individually, so without carrying the
+  // fractional remainder forward, most of a slow drag just gets silently
+  // dropped (the map barely moves). Accumulate the leftover here instead.
+  const totalX = rotated.x + mapPanState.remX;
+  const totalY = rotated.y + mapPanState.remY;
+  const applyX = Math.round(totalX);
+  const applyY = Math.round(totalY);
+  mapPanState.remX = totalX - applyX;
+  mapPanState.remY = totalY - applyY;
   // panBy(offset) moves the pane by -offset (panning the "view" right shifts
   // content left) - negate so the content actually follows the finger.
-  map.panBy([-rotated.x, -rotated.y], { animate: false });
+  if (applyX || applyY) map.panBy([-applyX, -applyY], { animate: false });
 }
 
 function onMapPointerEnd(ev) {

@@ -377,7 +377,11 @@ button:active { filter: brightness(0.85); }
    rotation itself is applied to #map-rotate-wrapper (inserted around
    Leaflet's map pane in JS), not to #map or the pane directly - see the
    comment above mapRotateWrapperEl in app.js for why. */
-#map-viewport { flex: 1; min-height: 220px; border-radius: 4px; overflow: hidden; position: relative; }
+/* touch-action:none stops the browser from hijacking a drag here for its
+   own native page-scroll/pinch-zoom gestures - without it, mobile browsers
+   can grab the touch sequence away from our pointer handlers mid-drag,
+   which is why panning felt broken/unresponsive before this. */
+#map-viewport { flex: 1; min-height: 220px; border-radius: 4px; overflow: hidden; position: relative; touch-action: none; }
 #map {
   position: absolute;
   top: 50%;
@@ -399,7 +403,7 @@ button:active { filter: brightness(0.85); }
    fight it, so skip it here. */
 [data-theme="daylight"] #map { filter: none; }
 
-.line-end-icon { background: transparent; border: none; }
+.line-end-icon { background: transparent; border: none; touch-action: none; }
 .line-end-circle {
   width: 26px;
   height: 26px;
