@@ -7,7 +7,7 @@ GPS/compass hardware device for more accuracy.
 
 ## What it does (current MVP)
 
-Three pages, like a real chartplotter/MFD, switched with the bottom tab bar:
+Four pages, like a real chartplotter/MFD, switched with the bottom tab bar:
 
 - **Instruments** — SOG, COG, HEEL (from the phone's tilt sensor, zeroable
   since mounting angle varies), the 5-4-1-0 start countdown (with sound
@@ -38,6 +38,13 @@ Three pages, like a real chartplotter/MFD, switched with the bottom tab bar:
   into the map's own coordinate space once it isn't sitting north-up. A
   recenter button (bottom-right of the map) jumps back to the boat's current
   position at the current zoom level.
+- **Races** — early, deliberately basic scaffold for multi-boat racing: create
+  a race (name + start time) or join one by code, see your races listed, and
+  "Start Sequence" jumps the countdown timer straight to that race's start
+  time (genuinely functional - useful today for one device running several
+  rounds back to back). Everything else - joining from another phone, seeing
+  other boats' routes after the race - needs a real backend that doesn't
+  exist yet, and the page says so rather than faking it.
 - **Settings** — wind direction, either typed in manually, fetched as a
   regional forecast estimate (Open-Meteo, free, no key), or measured directly
   by **sailing both tacks**: hold steady close-hauled on starboard, tack, hold
@@ -77,8 +84,9 @@ Other notes:
   data) from the Settings page. Nothing is auto-downloaded — sessions stay in
   `localStorage` until you export or delete them.
 
-Not built yet: map replay of a past session, social/leaderboards, native
-Android app, custom hardware.
+Not built yet: a real backend for multi-device race sync (Races page is a
+local-only scaffold so far), map replay of a past session, leaderboards,
+native Android app, custom hardware.
 
 ## Running it
 

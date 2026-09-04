@@ -20,8 +20,8 @@ else
 fi
 
 echo "== id cross-check (app.js getElementById <-> index.html id=) =="
-js_ids=$(grep -oE "getElementById\('[^']+'\)" app.js | sed -E "s/getElementById\('([^']+)'\)/\1/" | sort -u)
-html_ids=$(grep -oE 'id="[^"]+"' index.html | sed -E 's/id="([^"]+)"/\1/' | sort -u)
+js_ids=$(grep -oE "getElementById\('[^']+'\)" app.js | sed -E "s/getElementById\('([^']+)'\)/\1/" | LC_ALL=C sort -u)
+html_ids=$(grep -oE 'id="[^"]+"' index.html | sed -E 's/id="([^"]+)"/\1/' | LC_ALL=C sort -u)
 missing_in_html=$(comm -23 <(echo "$js_ids") <(echo "$html_ids"))
 if [ -n "$missing_in_html" ]; then
   echo "FAIL: app.js references ids with no matching element in index.html:"

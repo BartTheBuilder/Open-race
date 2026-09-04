@@ -120,6 +120,40 @@
     </div>
   </section>
 
+  <!-- ================= RACES ================= -->
+  <section class="page" id="page-races">
+    <header class="page-header"><span class="page-title">Races</span></header>
+
+    <div class="sub-readout">Early preview - races stay on this phone for now, syncing between boats is coming later.</div>
+
+    <div class="panel">
+      <label>Create a race</label>
+      <div class="row">
+        <input id="race-name-input" type="text" placeholder="Race name">
+      </div>
+      <div class="row">
+        <input id="race-start-input" type="datetime-local">
+      </div>
+      <button id="race-create-btn">Create Race</button>
+    </div>
+
+    <div class="panel">
+      <label>Join a race</label>
+      <div class="tile-sub">Paste a race code someone shared with you. Since races aren't synced between phones yet, this only finds races already on this device.</div>
+      <div class="row">
+        <input id="race-join-input" type="text" placeholder="Race code">
+        <button id="race-join-btn" class="secondary">Join</button>
+      </div>
+    </div>
+
+    <div class="sub-readout" id="races-status"></div>
+
+    <div class="panel">
+      <label>Your races</label>
+      <div id="races-list"><div class="sub-readout">No races yet</div></div>
+    </div>
+  </section>
+
   <!-- ================= SETTINGS ================= -->
   <section class="page" id="page-settings">
     <header class="page-header"><span class="page-title">Settings</span></header>
@@ -284,6 +318,7 @@
   <nav id="tabbar">
     <button class="tab active" data-page="instruments">Instruments</button>
     <button class="tab" data-page="route">Route</button>
+    <button class="tab" data-page="races">Races</button>
     <button class="tab" data-page="settings">Settings</button>
   </nav>
 

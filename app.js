@@ -2020,6 +2020,123 @@ function loadSettings() {
   updateCompassStatus();
 }
 
+/* ---------- races (local-only preview - no multi-device sync yet) ---------- */
+// A basic scaffold: create/join races and list them, all stored on-device.
+// "Join" only works today for a race already created on THIS phone (there's
+// no server, so a code from someone else's phone won't resolve to anything) -
+// this exists to shape the UI/data model for later, not as working
+// multiplayer. Say so plainly rather than let it look broken.
+const RACES_KEY = 'rc_races';
+
+function loadRaces() {
+  try { return JSON.parse(localStorage.getItem(RACES_KEY) || '[]'); } catch (e) { return []; }
+}
+
+function saveRaces(races) {
+  try { localStorage.setItem(RACES_KEY, JSON.stringify(races)); } catch (e) { /* storage unavailable, ignore */ }
+}
+
+function setRacesStatus(msg) {
+  const el = document.getElementById('races-status');
+  if (el) el.textContent = msg;
+}
+
+// Genuinely functional even without sync: jumps the existing countdown timer
+// straight to this race's declared start time and switches to Instruments -
+// the "multiple individual rounds" idea just means creating one race per
+// round and starting each one's sequence in turn.
+function startRaceSequence(race) {
+  if (!race.startAt) { setRacesStatus('This race has no start time set.'); return; }
+  const startMs = new Date(race.startAt).getTime();
+  if (Number.isNaN(startMs)) { setRacesStatus('That race has an invalid start time.'); return; }
+  state.timerEndAt = startMs;
+  prevRemainingS = null;
+  startSyncBtn.textContent = 'Sync';
+  if (state.timerInterval) clearInterval(state.timerInterval);
+  state.timerInterval = setInterval(tickTimer, 250);
+  tickTimer();
+  switchPage('instruments');
+  setRacesStatus(`Countdown synced to "${race.name}".`);
+}
+
+function renderRacesList() {
+  const races = loadRaces();
+  const listEl = document.getElementById('races-list');
+  if (races.length === 0) {
+    listEl.innerHTML = '<div class="sub-readout">No races yet</div>';
+    return;
+  }
+  listEl.innerHTML = '';
+  races.slice().reverse().forEach((race) => {
+    const row = document.createElement('div');
+    row.className = 'session-row';
+
+    const info = document.createElement('div');
+    info.className = 'session-info';
+    const startTxt = race.startAt ? new Date(race.startAt).toLocaleString() : 'No start time set';
+    const boatTxt = `${race.boats.length} boat${race.boats.length === 1 ? '' : 's'}`;
+    info.innerHTML = `<div style="font-weight:600;">${race.name}</div>` +
+      `<span class="muted">${startTxt} · code ${race.id} · ${boatTxt}</span>`;
+
+    const actions = document.createElement('div');
+    actions.className = 'session-actions';
+
+    const startBtn = document.createElement('button');
+    startBtn.className = 'small-btn';
+    startBtn.textContent = 'Start Sequence';
+    startBtn.addEventListener('click', () => startRaceSequence(race));
+
+    const routesBtn = document.createElement('button');
+    routesBtn.className = 'small-btn secondary';
+    routesBtn.textContent = 'View Routes';
+    routesBtn.addEventListener('click', () => {
+      setRacesStatus('Route sharing between boats needs multi-device sync, which isn\'t built yet - each joined boat\'s track will show here once it is.');
+    });
+
+    actions.appendChild(startBtn);
+    actions.appendChild(routesBtn);
+    row.appendChild(info);
+    row.appendChild(actions);
+    listEl.appendChild(row);
+  });
+}
+
+document.getElementById('race-create-btn').addEventListener('click', () => {
+  const nameInput = document.getElementById('race-name-input');
+  const startInput = document.getElementById('race-start-input');
+  const name = nameInput.value.trim();
+  if (!name) { setRacesStatus('Give the race a name first.'); return; }
+  const race = {
+    id: Math.random().toString(36).slice(2, 8).toUpperCase(),
+    name,
+    startAt: startInput.value ? new Date(startInput.value).toISOString() : null,
+    createdAt: Date.now(),
+    boats: [{ name: 'You', isMe: true }],
+  };
+  const races = loadRaces();
+  races.push(race);
+  saveRaces(races);
+  nameInput.value = '';
+  startInput.value = '';
+  renderRacesList();
+  setRacesStatus(`Race created - code is ${race.id}.`);
+});
+
+document.getElementById('race-join-btn').addEventListener('click', () => {
+  const codeInput = document.getElementById('race-join-input');
+  const code = codeInput.value.trim().toUpperCase();
+  if (!code) return;
+  const race = loadRaces().find((r) => r.id === code);
+  if (!race) {
+    setRacesStatus('No local race found with that code - multi-device sync isn\'t implemented yet.');
+    return;
+  }
+  setRacesStatus(`You're already set for "${race.name}" on this device.`);
+  codeInput.value = '';
+});
+
+renderRacesList();
+
 loadSettings();
 loadLayout();
 
